@@ -9,16 +9,15 @@ using MS;
 
 public class BuildWindow : EditorWindow
 {
-    MultiScene scenePreview = null;
-    MultiScene sceneClient = null;
-    MultiScene sceneServer = null;
-
     Vector2 m_ScrollPos;
     QuickstartData quickstartData = new QuickstartData();
-    List<string> scenes = new List<string>()
+
+    List<MultiScene> scenes = new List<MultiScene>();
+    List<string> scenesPaths = new List<string>()
     {
-        "Assets/Scenes/MS/ClientMS.asset",
-        "Assets/Scenes/MS/ServerMS.asset",
+        "Scenes/MS/MapMS",
+        "Scenes/MS/ClientMS",
+        "Scenes/MS/ServerMS",
     };
         
     public enum GameLoopMode
@@ -57,6 +56,19 @@ public class BuildWindow : EditorWindow
     public static void ShowWindow()
     {
         GetWindow<BuildWindow>(false, "Project Tools", true);
+    }
+
+    public void Awake()
+    {
+        Debug.Log("Init Scenes");
+        // Setup the Scenes.
+        foreach (string path in scenesPaths)
+        {
+            MultiScene s = Resources.Load<MultiScene>(path);
+            scenes.Add(s);
+            
+            Debug.Log(s.name + " " + s.ReturnScenesNames());
+        }
     }
 
     void OnGUI()
@@ -153,22 +165,22 @@ public class BuildWindow : EditorWindow
         GUILayout.EndVertical();
     }
 
-    
     void DrawQuickSelect()
     {
         // Title
         GUILayout.Label("Quick Select", EditorStyles.boldLabel);
 
         GUILayout.BeginVertical(EditorStyles.textArea);
-        GUILayout.Label("Map", GUILayout.ExpandWidth(true));
+        GUILayout.Label("Switch Scene - Map", GUILayout.ExpandWidth(true));
         GUILayout.BeginHorizontal();
 
+        // The order of the scenes is by the order of the strings in scenesPaths.
         EditorGUILayout.BeginVertical();
         if (GUILayout.Button("Preview", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
-                EditorSceneManager.RestoreSceneManagerSetup(scenePreview.ToSceneSetups());
+                EditorSceneManager.RestoreSceneManagerSetup(scenes[0].ToSceneSetups());
             }
         }
 
@@ -176,7 +188,7 @@ public class BuildWindow : EditorWindow
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
-                EditorSceneManager.RestoreSceneManagerSetup(sceneClient.ToSceneSetups());
+                EditorSceneManager.RestoreSceneManagerSetup(scenes[1].ToSceneSetups());
             }
         }
 
@@ -184,31 +196,15 @@ public class BuildWindow : EditorWindow
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
-                EditorSceneManager.RestoreSceneManagerSetup(sceneServer.ToSceneSetups());
+                EditorSceneManager.RestoreSceneManagerSetup(scenes[2].ToSceneSetups());
             }
         }
-        EditorGUILayout.EndVertical();
-
-        EditorGUILayout.BeginVertical();
-        try
-        {
-            GUILayout.Space(4.0f);
-            scenePreview = (MultiScene)EditorGUILayout.ObjectField(scenePreview, typeof(UnityEngine.Object), true);
-            GUILayout.Space(4.0f);
-            sceneClient = (MultiScene)EditorGUILayout.ObjectField(sceneClient, typeof(UnityEngine.Object), true);
-            GUILayout.Space(4.0f);
-            sceneServer = (MultiScene)EditorGUILayout.ObjectField(sceneServer, typeof(UnityEngine.Object), true);
-            GUILayout.Space(4.0f);
-        }
-        catch { }
-
         EditorGUILayout.EndVertical();
 
         GUILayout.EndHorizontal();
         GUILayout.EndHorizontal();
     }
     
-
     void DrawQuickStart()
     {
         GUILayout.BeginVertical();
@@ -298,10 +294,11 @@ public class BuildWindow : EditorWindow
     public static void BuildServer()
     {
         string origianl = PlayerSettings.productName;
+        string sceneFolder = "Assets/Resources/Scenes";
         PlayerSettings.productName = "Server";
         BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
         {
-            scenes = new[] { "Assets/Scenes/Server.unity", "Assets/Scenes/Map.unity" },
+            scenes = new[] { sceneFolder + "/Server.unity", sceneFolder + "/Map.unity" },
             locationPathName = GetBuildPath() + "/Server/Server.exe",
             target = BuildTarget.StandaloneWindows64,
             options = BuildOptions.EnableHeadlessMode
@@ -314,12 +311,13 @@ public class BuildWindow : EditorWindow
     public static void BuildClient()
     {
         string origianl = PlayerSettings.productName;
+        string sceneFolder = "Assets/Resources/Scenes";
         PlayerSettings.productName = "Client";
         BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
         {
-            scenes = new[] { "Assets/Scenes/Client.unity", "Assets/Scenes/Map.unity" },
+            scenes = new[] { sceneFolder + "/Client.unity", sceneFolder + "/Map.unity" },
             locationPathName = GetBuildPath() + "/Client/Client.exe",
-            target = BuildTarget.StandaloneWindows64
+            target = BuildTarget.StandaloneWindows64,
         };
         BuildPipeline.BuildPlayer(buildPlayerOptions);
         Debug.Log("Client Build successful");

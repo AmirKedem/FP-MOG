@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c8fbdec5b4c792546ac719e4c3e66f1b, type: 3}
-  m_Name: Map
+  m_Name: MapMS
   m_EditorClassIdentifier: 
   sceneSetups:
   - guid: 27fae0d0485be0342ad56ad074dc1eb5

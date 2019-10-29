@@ -28,6 +28,25 @@ namespace MS
             }
             return result;
         }
+
+        public string ReturnScenesNames()
+        {
+            string ret = string.Format("{0} Scenes", sceneSetups.Length);
+            
+            foreach (var sceneSetup in sceneSetups)
+            {
+                var scenePath = AssetDatabase.GUIDToAssetPath(sceneSetup.guid);
+                var filename = System.IO.Path.GetFileNameWithoutExtension(scenePath);
+                ret += "\n" + filename + " - MultiScene";
+                ret += "\n" + string.Format("path: {0}", scenePath);
+                ret += "\n" + string.Format("guid: {0}", sceneSetup.guid);
+                ret += "\n" + string.Format("Active: {0}", sceneSetup.isActive ? "Yes" : "No");
+                ret += "\n" + string.Format("Loaded: {0}", sceneSetup.isLoaded ? "Yes" : "No");
+                ret += "\n";
+            }
+            
+            return ret;
+        }
     }
 
     // MultiScene's SceneSetup uses an AssetDatabase GUID instead of a Scene path.
