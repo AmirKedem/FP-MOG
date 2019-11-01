@@ -4,7 +4,7 @@
 
 A simple game with client side prediction, interpolation and lag compensation.<br>
 
-The game is build in unity both the server and client are created from the same unity project and are currently target 64-bit windows machines.
+The game is built with unity both the server and client are created from the same unity project and are currently target 64-bit windows machines.
 
 ### Status
 
