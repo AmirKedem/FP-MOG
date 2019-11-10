@@ -26,7 +26,7 @@ public class ServerLoop
     // List of rays too.
     public void TakeSnapshot(List<Player> players)
     {
-        wm.TakeSnapshot(players);
+        wm.TakeSnapshot(players, tick);
     }
 
     public byte[] GetSnapshot()

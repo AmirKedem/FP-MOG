@@ -10,48 +10,12 @@ using System.Text;
 using System.Linq;
 using System.Threading;
 
-// Rough Idea
-/*
-StartServer();
-
-{
-    
-    select(); // NON BLOCKING
-
-
-    for reads
-        if server:
-            accept 
-            add to writes
-            add to reads
-        else:
-            Game.InputFromPlayer(Player, data)
-
-    if newTick
-        for clients:
-            message_queues.put(new List<Byte[]> {len, Game.GetSnapshot(Player)} );
-            sock.BeginSend(meassage_queues[s]);
-
-
-    for writes
-        try:
-            next_msg = message_queues[s].get_nowait()
-        except Exception:
-            pass
-        else:
-            s.send(next_msg)
-       
-    for errors
-
-}
-*/
-
 public class User
 {
     public Player player;
     public Socket sock = null;
     // Size of receive buffer.
-    protected const int BufferSize = 512;
+    protected const int BufferSize = 1024;
     // Receive buffer.  
     public byte[] buffer = new byte[BufferSize];
     // Received data string.
@@ -90,7 +54,7 @@ public class User
             if (len == 0)
             {
                 // Process message in stream.
-                str = string.Format("Echoed test = {0}", Encoding.ASCII.GetString(ms.ToArray()));
+                str = string.Format("Echoed test = {0}", ms.ToArray().Length);
                 Console.WriteLine(str);
                 // Clean the MemoryStream.
                 ms.SetLength(0);
@@ -208,10 +172,10 @@ public class Server : MonoBehaviour
         isRunning = true;
         while (isRunning)
         {
-
+            // Not very nice yet still working. Since client spam
+            Thread.Sleep(20);
             Inputs = InputsOG.ToList();
-
-            Socket.Select(Inputs, null, null, -1);
+            Socket.Select(Inputs, null, Errors, -1);
 
             foreach (Socket sock in Inputs)
             {
@@ -249,6 +213,14 @@ public class Server : MonoBehaviour
                         clients[sock].ReceiveOnce();
                 }
             }
+
+            foreach (Socket sock in Errors)
+            {
+                Console.WriteLine("Client Disconnected");
+                OnUserDisconnect(sock);
+            }
+
+            Errors.Clear();
         }
 
         Debug.Log("Stop Listening");

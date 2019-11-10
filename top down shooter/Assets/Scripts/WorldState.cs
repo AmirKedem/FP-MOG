@@ -8,16 +8,16 @@ using System.Runtime.Serialization.Formatters.Binary;
 
 public class WorldManager
 {
-    WorldState Snapshot = new WorldState();
+    WorldState Snapshot;
 
     public WorldManager()
     {
-        Snapshot = new WorldState();
+        Snapshot = new WorldState(0);
     }
 
-    public void TakeSnapshot(List<Player> players)
+    public void TakeSnapshot(List<Player> players, int serverTick)
     {
-        Snapshot = new WorldState();
+        Snapshot = new WorldState(serverTick);
         foreach (Player p in players)
         {
             if (p.obj != null)
@@ -45,12 +45,17 @@ public class WorldManager
     }  
 }
 
-
 [Serializable]
 public class WorldState
 {
+    public int serverTick;
     public List<PlayerState> playersState = new List<PlayerState>();
     public List<RayState> raysState = new List<RayState>();
+
+    public WorldState(int serverTick)
+    {
+        this.serverTick = serverTick;
+    }
 
     public void AddState(PlayerState state)
     {
@@ -60,6 +65,57 @@ public class WorldState
     public void AddState(RayState state)
     {
         raysState.Add(state);
+    }
+}
+
+
+public static class ClientManager
+{
+    public static byte[] Serialize(ClientInput ci)
+    {
+        MemoryStream ms = new MemoryStream();
+        BinaryFormatter formatter = new BinaryFormatter();
+
+        formatter.Serialize(ms, ci);
+        return ms.ToArray();
+    }
+
+    public static ClientInput DeSerialize(byte[] bytes)
+    {
+        MemoryStream ms = new MemoryStream();
+        BinaryFormatter formatter = new BinaryFormatter();
+        ms = new MemoryStream(bytes);
+
+        return (ClientInput) formatter.Deserialize(ms);
+    }
+}
+
+
+[Serializable]
+public class ClientInput
+{
+    public List<InputEvent> inputEvents = new List<InputEvent>();
+
+    public void AddEvent(InputEvent iE)
+    {
+        inputEvents.Add(iE);
+    }
+}
+
+[Serializable]
+public struct InputEvent
+{
+    public int serverTick;
+    public float deltaTime; // The delta time from the last Server Tick.
+    public float zAngle; // The angle between the mouse and the player according to the x axis.
+    public bool mouseDown;
+
+    public InputEvent(int serverTick, float deltaTime, float zAngle, bool mouseDown)
+    {
+        this.serverTick = serverTick;
+        this.deltaTime = deltaTime;
+        this.zAngle = zAngle;
+        this.mouseDown = mouseDown;
     }
 }
 

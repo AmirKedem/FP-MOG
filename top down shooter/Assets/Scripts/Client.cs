@@ -6,9 +6,31 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+using System.Diagnostics;
+
 using System.IO;
 using System.Text;
 using System.Threading;
+
+
+public class LastPacket
+{
+    Stopwatch stopWatch = new Stopwatch();
+    public int tickNumber;
+    
+    public LastPacket(int tickNumber)
+    {
+        this.stopWatch.Restart();
+        this.tickNumber = tickNumber;
+    }
+
+    public long GetRecDeltaTime()
+    {
+        return stopWatch.ElapsedMilliseconds;
+    }
+
+}
+
 
 public class Client : MonoBehaviour
 {
@@ -17,6 +39,9 @@ public class Client : MonoBehaviour
 
     public static WorldManager wm;
     public static WorldState ws;
+    public static ClientInput ci;
+
+    public static LastPacket lastPkt;
 
     private static int myId;
     private static bool received = false;
@@ -40,20 +65,20 @@ public class Client : MonoBehaviour
             client.EndConnect(ar);
 
             string str = string.Format("Socket connected to {0}", client.RemoteEndPoint.ToString());
-            Debug.Log(str);
+            UnityEngine.Debug.Log(str);
             // Signal that the connection has been made.  
             connectDone.Set();
         }
         catch (Exception e)
         {
-            Debug.Log(e.ToString());
+            UnityEngine.Debug.Log(e.ToString());
         }
     }
 
-    public void Send(string data)
-    {
-        // Convert the string data to byte data using ASCII encoding.  
-        byte[] byteData = Globals.Serializer(Encoding.ASCII.GetBytes(data));
+    public void Send(byte[] data)
+    { 
+        // Adding a Length prefix to the data.
+        byte[] byteData = Globals.Serializer(data);
 
         // Begin sending the data to the remote device.  
         sock.BeginSend(byteData, 0, byteData.Length, 0,
@@ -65,16 +90,15 @@ public class Client : MonoBehaviour
         try
         {
             // Retrieve the socket from the state object.  
-            Socket client = (Socket)ar.AsyncState;
-
+            Socket client = (Socket) ar.AsyncState;
             // Complete sending the data to the remote device.  
             int bytesSent = client.EndSend(ar);
             string str = string.Format("Sent {0} bytes to server.", bytesSent);
-            Debug.Log(str);
+            UnityEngine.Debug.Log(str);
         }
         catch (Exception e)
         {
-            Debug.Log(e.ToString());
+            UnityEngine.Debug.Log(e.ToString());
         }
     }
 
@@ -97,10 +121,10 @@ public class Client : MonoBehaviour
         {
             // Receive the response from the remote device.
             if (offset >= bytesRec) {
-                Debug.Log("Waitin to receive");
+                UnityEngine.Debug.Log("Waitin to receive");
                 bytesRec = sock.Receive(buffer);
-                Debug.Log(bytesRec);
-                Debug.Log("\n" + "bytesRec: " + bytesRec.ToString());
+                UnityEngine.Debug.Log(bytesRec);
+                UnityEngine.Debug.Log("\n" + "bytesRec: " + bytesRec.ToString());
                 offset = 0;
             }
 
@@ -122,19 +146,31 @@ public class Client : MonoBehaviour
                 }
             }
 
+            // Process message in stream.
             data = ms.ToArray();
             if (data.Length == 4)
             {
                 // Connection We get our own ID.
                 myId = BitConverter.ToInt32(data, 0);
-                Debug.Log(myId);
+                UnityEngine.Debug.Log(myId);
                 received = true;
             } 
             else {
-                // Process message in stream.
-                ws = wm.DeSerialize(data);
+                var newWorldState = wm.DeSerialize(data);
+                if (ws != null)
+                {
+                    lock (ws)
+                    {
+                        ws = newWorldState;
+                    }
+                } 
+                else
+                {
+                    ws = newWorldState;
+                }
             }
-
+            // End of the message processing.
+            // Clear  the buffer.
             ms.SetLength(0);
         }
     }
@@ -148,43 +184,35 @@ public class Client : MonoBehaviour
             IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
             IPAddress ipAddress = ipHostInfo.AddressList[0];
             IPEndPoint remoteEP = new IPEndPoint(ipAddress, Globals.port);
-
             // Create a TCP/IP socket.  
             sock = new Socket(ipAddress.AddressFamily,
                 SocketType.Stream, ProtocolType.Tcp);
-
             // Connect to the remote endpoint.  
             sock.BeginConnect(remoteEP,
                 new AsyncCallback(ConnectCallback), sock);
             connectDone.WaitOne();
-
+            // Setup done, ConnectDone.
+            UnityEngine.Debug.Log("Connected");
             // open receive thread
             Thread recThr = new Thread(new ThreadStart(ReceiveLoop));
             recThr.Start();
-            // open send thread
 
+            //// open send thread
+            //Thread sndThr = new Thread(new ThreadStart(SendLoop));
+            //sndThr.Start();
         }
         catch (Exception e)
         {
-            Debug.Log(e.ToString());
+            UnityEngine.Debug.Log(e.ToString());
         }
     }
-    // Start is called before the first frame update
+
     void Start()
     {
-        if (Screen.fullScreen)
-            Screen.fullScreen = !Screen.fullScreen;
-
-        Application.runInBackground = true;
-        Application.targetFrameRate = 120;
-        Physics2D.autoSimulation = false;
-
         wm = new WorldManager();
 
         Thread thr = new Thread(new ThreadStart(StartClient));
         thr.Start();
-
-        Debug.Log("Connected");
     }
 
     private void FixedUpdate()
@@ -200,39 +228,54 @@ public class Client : MonoBehaviour
                 tmpP.obj.name = myId.ToString();
                 // Add myself to the list of players.
                 PlayerFromId.Add(myId, tmpP);
+
+                // Init Player Input Events.
+                ci = new ClientInput();
+                lastPkt = new LastPacket(0);
             }
         }
         else
         {
+            // Check if we can send a new message or not
+            if (ci != null && ci.inputEvents.Count > 0)
+            {
+                Send(ClientManager.Serialize(ci));
+                // Clear the list of events.
+                ci.inputEvents.Clear();
+            }
+            // Check if we got a new message or not
             if (ws != null)
             {
-                DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
-                foreach (PlayerState ps in ws.playersState)
+                lock (ws)
                 {
-                    // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
-                    DisconnectedPlayersIds.Remove(ps.playerId);
-
-                    if (PlayerFromId.ContainsKey(ps.playerId))
+                    DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
+                    foreach (PlayerState ps in ws.playersState)
                     {
-                        PlayerFromId[ps.playerId].FromState(ps);
+                        // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
+                        DisconnectedPlayersIds.Remove(ps.playerId);
+
+                        if (PlayerFromId.ContainsKey(ps.playerId))
+                        {
+                            PlayerFromId[ps.playerId].FromState(ps);
+                        }
+                        else
+                        {
+                            Player tmpP = new Player();
+                            tmpP.obj = GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
+                            tmpP.rb = tmpP.obj.GetComponent<Rigidbody2D>();
+                            tmpP.obj.name = "Player" + ps.playerId.ToString();
+
+                            tmpP.FromState(ps);
+
+                            PlayerFromId.Add(ps.playerId, tmpP);
+                        }
                     }
-                    else
+
+                    // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
+                    foreach (int playerId in DisconnectedPlayersIds)
                     {
-                        Player tmpP = new Player();
-                        tmpP.obj = GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
-                        tmpP.rb = tmpP.obj.GetComponent<Rigidbody2D>();
-                        tmpP.obj.name = "Player" + ps.playerId.ToString();
-
-                        tmpP.FromState(ps);
-
-                        PlayerFromId.Add(ps.playerId, tmpP);
+                        PlayerFromId.Remove(playerId);
                     }
-                }
-
-                // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
-                foreach (int playerId in DisconnectedPlayersIds)
-                {
-                    PlayerFromId.Remove(playerId);
                 }
             }
         }
@@ -247,5 +290,23 @@ public class Client : MonoBehaviour
 
             Application.Quit();
         }
+        
+        if (ci == null)
+        { 
+            return;
+        }
+
+        Vector3 mouseDir = Input.mousePosition - transform.position;
+        float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
+        bool mouseDown = false;
+
+        // Fire Button is Down.
+        if (Input.GetMouseButtonDown(0))
+        {
+            mouseDown = true;
+        }
+
+        InputEvent newInputEvent = new InputEvent(lastPkt.tickNumber, lastPkt.GetRecDeltaTime(), zAngle, mouseDown);
+        ci.AddEvent(newInputEvent);
     }
 }
