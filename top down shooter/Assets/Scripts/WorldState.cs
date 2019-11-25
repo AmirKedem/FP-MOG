@@ -5,6 +5,8 @@ using UnityEngine;
 
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Reflection;
+using System.Text;
 
 public class WorldManager
 {
@@ -96,9 +98,9 @@ public class ClientInput
 {
     public List<InputEvent> inputEvents = new List<InputEvent>();
 
-    public void AddEvent(InputEvent iE)
+    public void AddEvent(InputEvent ie)
     {
-        inputEvents.Add(iE);
+        inputEvents.Add(ie);
     }
 }
 
@@ -116,6 +118,23 @@ public struct InputEvent
         this.deltaTime = deltaTime;
         this.zAngle = zAngle;
         this.mouseDown = mouseDown;
+    }
+
+    public override string ToString()
+    {
+        PropertyInfo[] _PropertyInfos = null;
+        if (_PropertyInfos == null)
+            _PropertyInfos = this.GetType().GetProperties();
+
+        var sb = new StringBuilder();
+
+        foreach (var info in _PropertyInfos)
+        {
+            var value = info.GetValue(this, null) ?? "(null)";
+            sb.AppendLine(info.Name + ": " + value.ToString());
+        }
+
+        return sb.ToString();
     }
 }
 

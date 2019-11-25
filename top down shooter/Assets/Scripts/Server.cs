@@ -53,9 +53,12 @@ public class User
 
             if (len == 0)
             {
-                // Process message in stream.
+                // Debug.
                 str = string.Format("Echoed test = {0}", ms.ToArray().Length);
                 Console.WriteLine(str);
+                // Process message in stream.
+                this.player.CacheClientInput(ClientManager.DeSerialize(ms.ToArray()));
+                Console.WriteLine(this.player.userCommandList.Count);
                 // Clean the MemoryStream.
                 ms.SetLength(0);
 
@@ -69,7 +72,6 @@ public class User
         }
     }
 }
-
 
 public class Server : MonoBehaviour
 {
@@ -87,7 +89,7 @@ public class Server : MonoBehaviour
     private static List<Socket> OutputsOG = new List<Socket>();
     private static List<Socket> ErrorsOG = new List<Socket>();
 
-    private static Dictionary<Socket, User> clients = new Dictionary<Socket, User>();
+    public static Dictionary<Socket, User> clients = new Dictionary<Socket, User>();
 
     private void Start()
     {
@@ -97,6 +99,7 @@ public class Server : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Network Tick.
         lock (instantiateJobs)
         {
             Player p;
@@ -110,20 +113,21 @@ public class Server : MonoBehaviour
             instantiateJobs.Clear();
         }
 
-        // Every three ticks the update function will return true.
-        if (serverLoop.Update(clients.Values.Select(x => x.player).ToList()))
+        // Every tick we call update function which will process all the user commands and apply them to the physics world.
+        serverLoop.Update(clients.Values.Select(x => x.player).ToList());
+
+        byte[] snapshot = serverLoop.GetSnapshot();
+        Console.WriteLine("Number of outputs sockets: " + OutputsOG.Count);
+        foreach (Socket sock in OutputsOG)
         {
-            byte[] snapshot = serverLoop.GetSnapshot();
-            foreach (Socket sock in OutputsOG)
+            try
             {
-                try
-                {
-                    SendReply(clients[sock], snapshot);
-                }
-                catch
-                {
-                    OnUserDisconnect(sock);
-                }
+                Console.WriteLine("Fixed Update Send Reply " + snapshot.Length);
+                SendReply(clients[sock], snapshot);
+            }
+            catch
+            {
+                OnUserDisconnect(sock);
             }
         }
     }
@@ -162,9 +166,8 @@ public class Server : MonoBehaviour
 
         InputsOG.Add(listenerSocket);
 
-        List<Socket> Inputs = new List<Socket>();
-        List<Socket> Outputs = new List<Socket>();
-        List<Socket> Errors = new List<Socket>();
+        List<Socket> Inputs;
+        List<Socket> Errors;
 
         Socket tmp;
         User usr;
@@ -173,8 +176,10 @@ public class Server : MonoBehaviour
         while (isRunning)
         {
             // Not very nice yet still working. Since client spam
-            Thread.Sleep(20);
+            Thread.Sleep(40);
             Inputs = InputsOG.ToList();
+            Errors = InputsOG.ToList();
+
             Socket.Select(Inputs, null, Errors, -1);
 
             foreach (Socket sock in Inputs)
@@ -207,16 +212,21 @@ public class Server : MonoBehaviour
                     usr.bytesRec = sock.Receive(usr.buffer, 0, usr.buffer.Length, 0);
 
                     if (usr.bytesRec <= 0)
+                    {
+                        Console.WriteLine("Client Disconnected empty Message");
                         OnUserDisconnect(sock);
+                    }
                     else
+                    {
                         // Receive the data.
-                        clients[sock].ReceiveOnce();
+                        usr.ReceiveOnce();
+                    }
                 }
             }
 
             foreach (Socket sock in Errors)
             {
-                Console.WriteLine("Client Disconnected");
+                Console.WriteLine("Client Disconnected from Errors");
                 OnUserDisconnect(sock);
             }
 
@@ -228,6 +238,7 @@ public class Server : MonoBehaviour
 
     void SendReply(User user, byte[] msgArray)
     {
+        Console.WriteLine("Bytes to Send: " + msgArray.Length);
         byte[] wrapped = Globals.Serializer(msgArray);
         user.sock.BeginSend(wrapped, 0, wrapped.Length, SocketFlags.None, EndSend, user);
     }
@@ -235,7 +246,8 @@ public class Server : MonoBehaviour
     void EndSend(IAsyncResult iar)
     {
         User user = (iar.AsyncState as User);
-        user.sock.EndSend(iar);
+        int BytesSent = user.sock.EndSend(iar);
+        Console.WriteLine("Bytes Sent: " + BytesSent);
     }
 
     void OnApplicationQuit()
@@ -247,8 +259,13 @@ public class Server : MonoBehaviour
     static void CloseServer()
     {
         isRunning = false;
-        listenerSocket.Shutdown(SocketShutdown.Both);
-        listenerSocket.Close();
+
+        try
+        {
+            listenerSocket.Shutdown(SocketShutdown.Both);
+            listenerSocket.Close();
+        } 
+        catch (SocketException) { }
     }
 
     static void OnUserDisconnect(Socket sock)
@@ -256,15 +273,19 @@ public class Server : MonoBehaviour
         try
         {
             sock.Close();
+
+            try
+            {
+                Destroy(clients[sock].player.obj);
+            } catch { }     
+
             clients.Remove(sock);
 
             InputsOG.Remove(sock);
             OutputsOG.Remove(sock);
 
             Console.WriteLine("Client Disconnected");
-        } 
-        catch
-        {
         }
+        catch { }
     }
 }
