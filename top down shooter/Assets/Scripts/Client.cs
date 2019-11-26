@@ -13,22 +13,26 @@ using System.Text;
 using System.Threading;
 
 
-public class LastPacket
+public static class PacketStartTime
 {
-    Stopwatch stopWatch = new Stopwatch();
-    public int tickNumber;
-    
-    public LastPacket(int tickNumber)
+    static Stopwatch stopWatch;
+
+    static PacketStartTime()
     {
-        this.stopWatch.Restart();
-        this.tickNumber = tickNumber;
+        stopWatch = new Stopwatch();
     }
 
-    public long GetRecDeltaTime()
+    public static void StartStopWatch()
     {
-        return stopWatch.ElapsedMilliseconds;
+        stopWatch.Start();
     }
 
+    public static void ResetStopWatch()
+    {
+        stopWatch.Reset();
+    }
+
+    public static float Time { get => stopWatch.ElapsedMilliseconds / 1000f; }
 }
 
 
@@ -41,8 +45,6 @@ public class Client : MonoBehaviour
     public static WorldState ws;
     public static ClientInput ci;
 
-    public static LastPacket lastPkt;
-
     private static int myId;
     private static bool received = false;
     public static Dictionary<int, Player> PlayerFromId = new Dictionary<int, Player>();
@@ -53,6 +55,9 @@ public class Client : MonoBehaviour
     // ManualResetEvent instances signal completion.  
     private static ManualResetEvent connectDone =
         new ManualResetEvent(false);
+
+    float deltaTime = 0.0f;
+    int w = Screen.width, h = Screen.height;
 
     private static void ConnectCallback(IAsyncResult ar)
     {
@@ -229,8 +234,7 @@ public class Client : MonoBehaviour
                 PlayerFromId.Add(myId, tmpP);
                 UnityEngine.Debug.Log("Logged in Setup complete");
                 // Init Player Input Events.
-                ci = new ClientInput();
-                lastPkt = new LastPacket(0);
+                ci = new ClientInput(); 
             }
         }
         else
@@ -277,19 +281,20 @@ public class Client : MonoBehaviour
                 }
             }
 
-
             // Check if we can send a new message or not
             if (ci != null && ci.inputEvents.Count > 0)
             {
                 Send(ClientManager.Serialize(ci));
                 // Clear the list of events.
                 ci.inputEvents.Clear();
+                PacketStartTime.ResetStopWatch();
             }
         }
     }
 
     private void Update()
     {
+        deltaTime += (Time.unscaledDeltaTime - deltaTime) * 0.1f;
         if (Input.GetKey(KeyCode.Escape))
         {
             sock.Shutdown(SocketShutdown.Both);
@@ -299,22 +304,58 @@ public class Client : MonoBehaviour
         }
         
         if (ci == null)
-        { 
             return;
-        }
 
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mouseDir = mousePos - (Vector2) transform.position;
+        Vector2 mouseDir = mousePos - (Vector2) playerLocal.transform.position;
         float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
         bool mouseDown = false;
 
         // Fire Button is Down.
         if (Input.GetMouseButtonDown(0))
-        {
             mouseDown = true;
-        }
 
-        InputEvent newInputEvent = new InputEvent(lastPkt.tickNumber, lastPkt.GetRecDeltaTime(), zAngle, mouseDown);
+        if (ci.inputEvents.Count == 0)
+            PacketStartTime.StartStopWatch();
+
+        InputEvent newInputEvent = new InputEvent(0, PacketStartTime.Time, zAngle, mouseDown);
         ci.AddEvent(newInputEvent);
+
     }
+
+    private void OnGUI()
+    {
+        FPSCounter();
+        AngleLabel();
+    }
+
+    private void FPSCounter()
+    {
+        GUIStyle style = new GUIStyle();
+
+        Rect rect = new Rect(0, 0, w, h * 2 / 100);
+        style.alignment = TextAnchor.UpperLeft;
+        style.fontSize = h * 2 / 100;
+        style.normal.textColor = Color.white;
+        float msec = deltaTime * 1000.0f;
+        float fps = 1.0f / deltaTime;
+        string text = string.Format("{0:0.0} ms ({1:0.} fps)", msec, fps);
+        GUI.Label(rect, text, style);
+    }
+
+    private void AngleLabel()
+    {
+        GUIStyle style = new GUIStyle();
+
+        Rect rect = new Rect(90, 0, w, h * 2 / 100);
+        style.alignment = TextAnchor.UpperLeft;
+        style.fontSize = h * 2 / 100;
+        style.normal.textColor = Color.white;
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 mouseDir = mousePos - (Vector2)playerLocal.transform.position;
+        float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
+        string text = "Angle: " + zAngle.ToString();
+        GUI.Label(rect, text, style);
+    }
+
 }

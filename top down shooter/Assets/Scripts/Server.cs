@@ -53,15 +53,10 @@ public class User
 
             if (len == 0)
             {
-                // Debug.
-                str = string.Format("Echoed test = {0}", ms.ToArray().Length);
-                Console.WriteLine(str);
                 // Process message in stream.
                 this.player.CacheClientInput(ClientManager.DeSerialize(ms.ToArray()));
-                Console.WriteLine(this.player.userCommandList.Count);
                 // Clean the MemoryStream.
                 ms.SetLength(0);
-
                 // For the next message within this recevie.
                 if (offset < bytesRec)
                 {
@@ -117,7 +112,7 @@ public class Server : MonoBehaviour
         serverLoop.Update(clients.Values.Select(x => x.player).ToList());
 
         byte[] snapshot = serverLoop.GetSnapshot();
-        Console.WriteLine("Number of outputs sockets: " + OutputsOG.Count);
+
         foreach (Socket sock in OutputsOG)
         {
             try
@@ -238,7 +233,6 @@ public class Server : MonoBehaviour
 
     void SendReply(User user, byte[] msgArray)
     {
-        Console.WriteLine("Bytes to Send: " + msgArray.Length);
         byte[] wrapped = Globals.Serializer(msgArray);
         user.sock.BeginSend(wrapped, 0, wrapped.Length, SocketFlags.None, EndSend, user);
     }

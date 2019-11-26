@@ -29,7 +29,7 @@ public class DebugVelocity : MonoBehaviour
         }
     }
 
-    void DrawLine(Vector3 start, Vector3 end, Color color, float duration = 0.2f)
+    void DrawLine(Vector3 start, Vector3 end, Color color, float duration = 0.5f)
     {
         GameObject myLine = new GameObject();
         myLine.transform.position = start;

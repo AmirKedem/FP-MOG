@@ -5,7 +5,6 @@ using System.Diagnostics;
 using UnityEngine;
 
 
-
 public static class StopWacthTime
 {
     static Stopwatch stopWatch;
@@ -13,22 +12,22 @@ public static class StopWacthTime
     static StopWacthTime()
     {
         stopWatch = new Stopwatch();
+        stopWatch.Start();
     }
 
-    public static float Time { get => stopWatch.ElapsedMilliseconds; }
+    public static float Time { get => stopWatch.ElapsedMilliseconds/1000f; }
 }
 
 
 public class ServerLoop
 {
     const int NoMoreEvents = -1;
+    float tickDuration = Time.fixedDeltaTime;
     int tick = 0;
     WorldManager wm;
 
     float lastTickStartTime = 0;
-
-    [SerializeField]
-    float speedFactor = 0.1f;
+    float speedFactor = 0.5f;
 
     public GameObject playerPrefab;
 
@@ -70,55 +69,50 @@ public class ServerLoop
         tick++;
 
         foreach (Player player in players)
-        {
-            UnityEngine.Debug.Log("Player ID " + player.playerId + " Has this many events " + player.userCommandList.Count);
             ApplyVelocity(player);
-        }
-
-        float tickDuration = Time.fixedDeltaTime;
 
         float startTickTime = StopWacthTime.Time;
         float endTickTime = startTickTime + tickDuration;
+
+        UnityEngine.Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
 
         float curTime = startTickTime;
         float minorJump;
 
         float currEventsTime;
         float nextEventsTime;
-        List<bool> BoolsUserCommands = new List<bool>(new bool[players.Count]);
+
+        // init the list for the events indexes = > [ true for event in every player spot, false for no event needed].
+        List<bool> currBoolsUserCommands = new List<bool>(new bool[players.Count]);
+        List<bool> nextBoolsUserCommands = new List<bool>(new bool[players.Count]);
 
         List<ServerUserCommand> currUserCommands;
         List<int> playerEventIndexes = new List<int>(new int[players.Count]);
 
         // Simulate Till first event
         // or Till the end Tick Time if there is no event from the clients.
-        currEventsTime = GetEventsMinimalTime(players, playerEventIndexes, BoolsUserCommands);
+        currEventsTime = GetEventsMinimalTime(players, playerEventIndexes, currBoolsUserCommands);
         // Check if empty
         if (currEventsTime == NoMoreEvents)
-        {
             minorJump = tickDuration;
-        }
         else
-        {
             minorJump = (currEventsTime - lastTickStartTime);
-        }
+
         Physics2D.Simulate(minorJump);
         curTime += minorJump;
-        // init the list for the events indexes = > [ true for event in every player spot, false for no event needed].
-        // currUserCommands
 
-        BoolsUserCommands.ForEach((x) => x = false);
-        nextEventsTime = GetEventsMinimalTime(players, playerEventIndexes, BoolsUserCommands);
         while (curTime < endTickTime)
         {
             // Get all the events with minimal time.
-            currEventsTime = nextEventsTime;
-            currUserCommands = GetEvents(players, playerEventIndexes, BoolsUserCommands);
-            BoolsUserCommands.ForEach((x) => x = false);
+            currUserCommands = GetEvents(players, playerEventIndexes, currBoolsUserCommands);
 
-            nextEventsTime = Mathf.Min(GetEventsMinimalTime(players, playerEventIndexes, BoolsUserCommands), endTickTime);
+            currBoolsUserCommands = nextBoolsUserCommands;
+            nextBoolsUserCommands = new List<bool>(new bool[players.Count]);
+
+            nextEventsTime = Mathf.Min(GetEventsMinimalTime(players, playerEventIndexes, nextBoolsUserCommands), endTickTime);
 
             minorJump = nextEventsTime - currEventsTime;
+            currEventsTime = nextEventsTime;
 
             ApplyUserCommands(currUserCommands);
             Physics2D.Simulate(minorJump);
@@ -127,9 +121,8 @@ public class ServerLoop
 
         // Delete all events according to the indexes.
         for (int i = 0; i < players.Count; i++)
-        {
             players[i].userCommandList.RemoveRange(0, playerEventIndexes[i]);
-        }
+
         // take and store a snapshot of the world state TODO future
         lastTickStartTime = startTickTime;
 
@@ -149,9 +142,7 @@ public class ServerLoop
             if (curr != null)
             {
                 if (curr.serverRecTime < ret || ret == NoMoreEvents)
-                {
                     ret = curr.serverRecTime;
-                } 
             }
         }
 
@@ -188,23 +179,19 @@ public class ServerLoop
     public void ApplyUserCommands(List<ServerUserCommand> commands)
     {
         foreach (ServerUserCommand cmd in commands)
-        {
             ApplyGameplay(cmd.player, cmd.ie);
-        }
     }
 
     public void ApplyGameplay(Player player, InputEvent ie)
     {
-        UnityEngine.Debug.Log("Input Event Angle: " + ie.zAngle);
-        player.rb.rotation = ie.zAngle;
-        UnityEngine.Debug.Log("Transform Rotation Angle: " + player.rb.rotation);
+        float zAngle = Mathf.Repeat(ie.zAngle, 360);
+        player.obj.transform.rotation = Quaternion.Euler(0, 0, zAngle);
         //ApplyVelocity(player);
     }
 
     public void ApplyVelocity(Player player)
     {
-        // The player direction is 90 degs from the positive x axis.
-        float zAngle = ((player.rb.rotation + 90)%360) * Mathf.Deg2Rad;
+        float zAngle = (player.obj.transform.rotation.eulerAngles.z) * Mathf.Deg2Rad;
         player.rb.velocity = new Vector2(Mathf.Cos(zAngle) * speedFactor, Mathf.Sin(zAngle) * speedFactor);
     }
 }

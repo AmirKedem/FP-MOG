@@ -43,6 +43,13 @@ public class Player
     public void CacheClientInput(ClientInput ci)
     {
         userCommandList.AddRange(ServerUserCommand.CreaetUserCommands(this, ci));
+        string ret = "Number of Commands: " + userCommandList.Count + "\n";
+        for (int i = 0; i < userCommandList.Count; i++)
+        {
+            ServerUserCommand cmd = (ServerUserCommand)userCommandList[i];
+            ret += "Command " + i + ": " + cmd.serverRecTime + "\n";
+        }
+        Debug.Log(ret);
     }
 }
 
@@ -67,8 +74,9 @@ public class ServerUserCommand
         foreach (InputEvent ie in ci.inputEvents)
         {
             ret.Add(new ServerUserCommand(player, currTime + ie.deltaTime, ie));
-        }
 
+            Debug.Log(currTime + " Delta Time " + ie.deltaTime);
+        }
         return ret;
     }
 } 
