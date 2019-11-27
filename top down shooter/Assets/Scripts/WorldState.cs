@@ -96,9 +96,9 @@ public class ClientInput
 {
     public List<InputEvent> inputEvents = new List<InputEvent>();
 
-    public void AddEvent(InputEvent iE)
+    public void AddEvent(InputEvent ie)
     {
-        inputEvents.Add(iE);
+        inputEvents.Add(ie);
     }
 }
 
