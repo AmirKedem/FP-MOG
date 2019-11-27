@@ -97,7 +97,7 @@ LightmapSettings:
     m_ExportTrainingData: 0
     m_TrainingDataDestination: TrainingData
   m_LightingDataAsset: {fileID: 0}
-  m_UseShadowmask: 1
+  m_UseShadowmask: 0
 --- !u!196 &4
 NavMeshSettings:
   serializedVersion: 2
@@ -160,12 +160,12 @@ PrefabInstance:
     - target: {fileID: 1464371581689386882, guid: ab5dafe78d937a84e85078735a184036,
         type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0.7071068
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1464371581689386882, guid: ab5dafe78d937a84e85078735a184036,
         type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.7071068
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 1464371581689386882, guid: ab5dafe78d937a84e85078735a184036,
         type: 3}
@@ -185,28 +185,13 @@ PrefabInstance:
     - target: {fileID: 1464371581689386882, guid: ab5dafe78d937a84e85078735a184036,
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 90
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1464371581689386880, guid: ab5dafe78d937a84e85078735a184036,
         type: 3}
       propertyPath: m_Materials.Array.data[0]
       value: 
       objectReference: {fileID: 2100000, guid: 578c4ecbda7b14441b900d16eea22e8c, type: 2}
-    - target: {fileID: 1464371581689386880, guid: ab5dafe78d937a84e85078735a184036,
-        type: 3}
-      propertyPath: m_LightProbeUsage
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1464371581689386880, guid: ab5dafe78d937a84e85078735a184036,
-        type: 3}
-      propertyPath: m_ReflectionProbeUsage
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1464371581689386880, guid: ab5dafe78d937a84e85078735a184036,
-        type: 3}
-      propertyPath: m_CastShadows
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 1464371581327672100, guid: ab5dafe78d937a84e85078735a184036,
         type: 3}
       propertyPath: m_Materials.Array.data[0]
@@ -232,7 +217,6 @@ GameObject:
   - component: {fileID: 74434411}
   - component: {fileID: 74434410}
   - component: {fileID: 74434413}
-  - component: {fileID: 74434414}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -331,20 +315,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   localPlayerTransform: {fileID: 23080929}
   smoothTime: 0.3
---- !u!114 &74434414
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 74434409}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1a3b036799f86cb408e56375ab503285, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  lineMat: {fileID: 2100000, guid: 7e214c461632c114887b061131d9fa09, type: 2}
-  player: {fileID: 23080929}
 --- !u!1 &714233840 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 1464371581689386910, guid: ab5dafe78d937a84e85078735a184036,
@@ -423,8 +393,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b81774e126cacab44a62e8b944e8e13c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ticksPerSecond: 20
-  frameRate: 60
+  ticksPerSecond: 60
 --- !u!4 &830539828
 Transform:
   m_ObjectHideFlags: 0

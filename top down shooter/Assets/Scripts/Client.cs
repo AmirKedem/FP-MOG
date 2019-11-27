@@ -13,26 +13,22 @@ using System.Text;
 using System.Threading;
 
 
-public static class PacketStartTime
+public class LastPacket
 {
-    static Stopwatch stopWatch;
-
-    static PacketStartTime()
+    Stopwatch stopWatch = new Stopwatch();
+    public int tickNumber;
+    
+    public LastPacket(int tickNumber)
     {
-        stopWatch = new Stopwatch();
+        this.stopWatch.Restart();
+        this.tickNumber = tickNumber;
     }
 
-    public static void StartStopWatch()
+    public long GetRecDeltaTime()
     {
-        stopWatch.Start();
+        return stopWatch.ElapsedMilliseconds;
     }
 
-    public static void ResetStopWatch()
-    {
-        stopWatch.Reset();
-    }
-
-    public static float Time { get => stopWatch.ElapsedMilliseconds / 1000f; }
 }
 
 
@@ -45,6 +41,8 @@ public class Client : MonoBehaviour
     public static WorldState ws;
     public static ClientInput ci;
 
+    public static LastPacket lastPkt;
+
     private static int myId;
     private static bool received = false;
     public static Dictionary<int, Player> PlayerFromId = new Dictionary<int, Player>();
@@ -55,9 +53,6 @@ public class Client : MonoBehaviour
     // ManualResetEvent instances signal completion.  
     private static ManualResetEvent connectDone =
         new ManualResetEvent(false);
-
-    float deltaTime = 0.0f;
-    int w = Screen.width, h = Screen.height;
 
     private static void ConnectCallback(IAsyncResult ar)
     {
@@ -126,8 +121,10 @@ public class Client : MonoBehaviour
         {
             // Receive the response from the remote device.
             if (offset >= bytesRec) {
+                UnityEngine.Debug.Log("Waitin to receive");
                 bytesRec = sock.Receive(buffer);
-                UnityEngine.Debug.Log("bytesRec: " + bytesRec);
+                UnityEngine.Debug.Log(bytesRec);
+                UnityEngine.Debug.Log("\n" + "bytesRec: " + bytesRec.ToString());
                 offset = 0;
             }
 
@@ -155,12 +152,11 @@ public class Client : MonoBehaviour
             {
                 // Connection We get our own ID.
                 myId = BitConverter.ToInt32(data, 0);
-                UnityEngine.Debug.Log("My ID Is: " + myId);
+                UnityEngine.Debug.Log(myId);
                 received = true;
             } 
             else {
                 var newWorldState = wm.DeSerialize(data);
-                UnityEngine.Debug.Log("New World State");
                 if (ws != null)
                 {
                     lock (ws)
@@ -232,22 +228,27 @@ public class Client : MonoBehaviour
                 tmpP.obj.name = myId.ToString();
                 // Add myself to the list of players.
                 PlayerFromId.Add(myId, tmpP);
-                UnityEngine.Debug.Log("Logged in Setup complete");
+
                 // Init Player Input Events.
-                ci = new ClientInput(); 
+                ci = new ClientInput();
+                lastPkt = new LastPacket(0);
             }
         }
         else
         {
+            // Check if we can send a new message or not
+            if (ci != null && ci.inputEvents.Count > 0)
+            {
+                Send(ClientManager.Serialize(ci));
+                // Clear the list of events.
+                ci.inputEvents.Clear();
+            }
             // Check if we got a new message or not
             if (ws != null)
             {
                 lock (ws)
                 {
                     DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
-                    UnityEngine.Debug.Log("New State");
-                    UnityEngine.Debug.Log(DisconnectedPlayersIds.Count);
-                    UnityEngine.Debug.Log(ws.playersState.Count);
                     foreach (PlayerState ps in ws.playersState)
                     {
                         // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
@@ -255,9 +256,7 @@ public class Client : MonoBehaviour
 
                         if (PlayerFromId.ContainsKey(ps.playerId))
                         {
-                            // Update Scene from the new given State
                             PlayerFromId[ps.playerId].FromState(ps);
-                            UnityEngine.Debug.Log(ps.playerId + " At " + PlayerFromId[ps.playerId].obj.transform.position);
                         }
                         else
                         {
@@ -275,26 +274,15 @@ public class Client : MonoBehaviour
                     // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
                     foreach (int playerId in DisconnectedPlayersIds)
                     {
-                        Destroy(PlayerFromId[playerId].obj);
                         PlayerFromId.Remove(playerId);
                     }
                 }
-            }
-
-            // Check if we can send a new message or not
-            if (ci != null && ci.inputEvents.Count > 0)
-            {
-                Send(ClientManager.Serialize(ci));
-                // Clear the list of events.
-                ci.inputEvents.Clear();
-                PacketStartTime.ResetStopWatch();
             }
         }
     }
 
     private void Update()
     {
-        deltaTime += (Time.unscaledDeltaTime - deltaTime) * 0.1f;
         if (Input.GetKey(KeyCode.Escape))
         {
             sock.Shutdown(SocketShutdown.Both);
@@ -304,58 +292,21 @@ public class Client : MonoBehaviour
         }
         
         if (ci == null)
+        { 
             return;
+        }
 
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mouseDir = mousePos - (Vector2) playerLocal.transform.position;
+        Vector3 mouseDir = Input.mousePosition - transform.position;
         float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
         bool mouseDown = false;
 
         // Fire Button is Down.
         if (Input.GetMouseButtonDown(0))
+        {
             mouseDown = true;
+        }
 
-        if (ci.inputEvents.Count == 0)
-            PacketStartTime.StartStopWatch();
-
-        InputEvent newInputEvent = new InputEvent(0, PacketStartTime.Time, zAngle, mouseDown);
+        InputEvent newInputEvent = new InputEvent(lastPkt.tickNumber, lastPkt.GetRecDeltaTime(), zAngle, mouseDown);
         ci.AddEvent(newInputEvent);
-
     }
-
-    private void OnGUI()
-    {
-        FPSCounter();
-        AngleLabel();
-    }
-
-    private void FPSCounter()
-    {
-        GUIStyle style = new GUIStyle();
-
-        Rect rect = new Rect(0, 0, w, h * 2 / 100);
-        style.alignment = TextAnchor.UpperLeft;
-        style.fontSize = h * 2 / 100;
-        style.normal.textColor = Color.white;
-        float msec = deltaTime * 1000.0f;
-        float fps = 1.0f / deltaTime;
-        string text = string.Format("{0:0.0} ms ({1:0.} fps)", msec, fps);
-        GUI.Label(rect, text, style);
-    }
-
-    private void AngleLabel()
-    {
-        GUIStyle style = new GUIStyle();
-
-        Rect rect = new Rect(90, 0, w, h * 2 / 100);
-        style.alignment = TextAnchor.UpperLeft;
-        style.fontSize = h * 2 / 100;
-        style.normal.textColor = Color.white;
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mouseDir = mousePos - (Vector2)playerLocal.transform.position;
-        float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
-        string text = "Angle: " + zAngle.ToString();
-        GUI.Label(rect, text, style);
-    }
-
 }
