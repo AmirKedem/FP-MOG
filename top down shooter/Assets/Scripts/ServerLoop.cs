@@ -68,9 +68,6 @@ public class ServerLoop
 
         tick++;
 
-        foreach (Player player in players)
-            ApplyVelocity(player);
-
         float startTickTime = StopWacthTime.Time;
         float endTickTime = startTickTime + tickDuration;
 
@@ -89,6 +86,11 @@ public class ServerLoop
         List<ServerUserCommand> currUserCommands;
         List<int> playerEventIndexes = new List<int>(new int[players.Count]);
 
+        foreach (Player p in players)
+        {
+            p.MergeWithBuffer();
+            ApplyVelocity(p);
+        }
         // Simulate Till first event
         // or Till the end Tick Time if there is no event from the clients.
         currEventsTime = GetEventsMinimalTime(players, playerEventIndexes, currBoolsUserCommands);
@@ -98,7 +100,11 @@ public class ServerLoop
         else
             minorJump = (currEventsTime - lastTickStartTime);
 
-        Physics2D.Simulate(minorJump);
+        if (minorJump > 0)
+            Physics2D.Simulate(minorJump);
+        else
+            Physics2D.Simulate(startTickTime - lastTickStartTime);
+
         curTime += minorJump;
 
         while (curTime < endTickTime)
@@ -109,7 +115,10 @@ public class ServerLoop
             currBoolsUserCommands = nextBoolsUserCommands;
             nextBoolsUserCommands = new List<bool>(new bool[players.Count]);
 
-            nextEventsTime = Mathf.Min(GetEventsMinimalTime(players, playerEventIndexes, nextBoolsUserCommands), endTickTime);
+            nextEventsTime = GetEventsMinimalTime(players, playerEventIndexes, nextBoolsUserCommands);
+
+            if (nextEventsTime > endTickTime || nextEventsTime == NoMoreEvents)
+                nextEventsTime = endTickTime;
 
             minorJump = nextEventsTime - currEventsTime;
             currEventsTime = nextEventsTime;
@@ -117,16 +126,28 @@ public class ServerLoop
             ApplyUserCommands(currUserCommands);
             Physics2D.Simulate(minorJump);
             curTime += minorJump;
+
+            UnityEngine.Debug.Log("Minor Jump " + minorJump);
         }
 
-        // Delete all events according to the indexes.
-        for (int i = 0; i < players.Count; i++)
-            players[i].userCommandList.RemoveRange(0, playerEventIndexes[i]);
+        DeleteUsedEvents(players, playerEventIndexes);
 
         // take and store a snapshot of the world state TODO future
         lastTickStartTime = startTickTime;
 
         TakeSnapshot(players);
+    }
+
+    private void DeleteUsedEvents(List<Player> players, List<int> playerEventIndexes)
+    {
+        // Delete all events according to the indexes.
+        for (int i = 0; i < players.Count; i++)
+        {
+            lock (players[i].userCommandList)
+            {
+                players[i].userCommandList.RemoveRange(0, playerEventIndexes[i]);
+            }
+        }
     }
 
     public float GetEventsMinimalTime(List<Player> players, List<int> eventsFromIndexes, List<bool> takeEvent)

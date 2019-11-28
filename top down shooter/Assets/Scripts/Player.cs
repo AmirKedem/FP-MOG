@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using System.Timers;
+
 
 public class Player
 {
@@ -11,6 +11,8 @@ public class Player
     public Rigidbody2D rb;
 
     public List<ServerUserCommand> userCommandList = new List<ServerUserCommand>();
+    public List<ServerUserCommand> userCommandBufferList = new List<ServerUserCommand>();
+
 
     public Player()
     {
@@ -42,14 +44,28 @@ public class Player
 
     public void CacheClientInput(ClientInput ci)
     {
-        userCommandList.AddRange(ServerUserCommand.CreaetUserCommands(this, ci));
-        string ret = "Number of Commands: " + userCommandList.Count + "\n";
-        for (int i = 0; i < userCommandList.Count; i++)
+        userCommandBufferList.AddRange(ServerUserCommand.CreaetUserCommands(this, ci));
+        //string ret = "Number of Commands: " + userCommandList.Count + "\n";
+        //for (int i = 0; i < userCommandList.Count; i++)
+        //{
+        //    ServerUserCommand cmd = (ServerUserCommand)userCommandList[i];
+        //    ret += "Command " + i + ": " + cmd.serverRecTime + "\n";
+        //}
+        //Debug.Log(ret);
+    }
+
+    public void MergeWithBuffer()
+    {
+        lock (userCommandList)
         {
-            ServerUserCommand cmd = (ServerUserCommand)userCommandList[i];
-            ret += "Command " + i + ": " + cmd.serverRecTime + "\n";
+            lock (userCommandBufferList)
+            {
+                userCommandList.AddRange(userCommandBufferList);
+                userCommandBufferList.Clear();
+            }
+
+            userCommandList.Sort((a, b) => a.serverRecTime.CompareTo(b.serverRecTime));
         }
-        Debug.Log(ret);
     }
 }
 
@@ -68,15 +84,11 @@ public class ServerUserCommand
 
     public static List<ServerUserCommand> CreaetUserCommands(Player player, ClientInput ci)
     {
-        float currTime = StopWacthTime.Time;
         List<ServerUserCommand> ret = new List<ServerUserCommand>();
-
+        float currTime = StopWacthTime.Time;
         foreach (InputEvent ie in ci.inputEvents)
-        {
             ret.Add(new ServerUserCommand(player, currTime + ie.deltaTime, ie));
 
-            Debug.Log(currTime + " Delta Time " + ie.deltaTime);
-        }
         return ret;
     }
 } 
