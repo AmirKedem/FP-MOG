@@ -65,7 +65,6 @@ public class ServerLoop
         
         Take A Snap Shot of the updated world
         */
-
         tick++;
 
         float startTickTime = StopWacthTime.Time;
@@ -79,43 +78,36 @@ public class ServerLoop
         float currEventsTime;
         float nextEventsTime;
 
-        // init the list for the events indexes = > [ true for event in every player spot, false for no event needed].
-        List<bool> currBoolsUserCommands = new List<bool>(new bool[players.Count]);
-        List<bool> nextBoolsUserCommands = new List<bool>(new bool[players.Count]);
-
         List<ServerUserCommand> currUserCommands;
-        List<int> playerEventIndexes = new List<int>(new int[players.Count]);
+        List<int> playerEventIndexes = new List<int>();
 
         foreach (Player p in players)
         {
+            playerEventIndexes.Add(0);
             p.MergeWithBuffer();
             ApplyVelocity(p);
         }
         // Simulate Till first event
         // or Till the end Tick Time if there is no event from the clients.
-        currEventsTime = GetEventsMinimalTime(players, playerEventIndexes, currBoolsUserCommands);
+        currEventsTime = GetEventsMinimalTime(players, playerEventIndexes);
         // Check if empty
         if (currEventsTime == NoMoreEvents)
             minorJump = tickDuration;
         else
-            minorJump = (currEventsTime - lastTickStartTime);
+            minorJump = (currEventsTime - startTickTime);
 
         if (minorJump > 0)
             Physics2D.Simulate(minorJump);
         else
-            Physics2D.Simulate(startTickTime - lastTickStartTime);
+            minorJump = 0;
 
         curTime += minorJump;
-
         while (curTime < endTickTime)
         {
             // Get all the events with minimal time.
-            currUserCommands = GetEvents(players, playerEventIndexes, currBoolsUserCommands);
+            currUserCommands = GetEvents(players, playerEventIndexes, currEventsTime);
 
-            currBoolsUserCommands = nextBoolsUserCommands;
-            nextBoolsUserCommands = new List<bool>(new bool[players.Count]);
-
-            nextEventsTime = GetEventsMinimalTime(players, playerEventIndexes, nextBoolsUserCommands);
+            nextEventsTime = GetEventsMinimalTime(players, playerEventIndexes);
 
             if (nextEventsTime > endTickTime || nextEventsTime == NoMoreEvents)
                 nextEventsTime = endTickTime;
@@ -130,6 +122,14 @@ public class ServerLoop
             UnityEngine.Debug.Log("Minor Jump " + minorJump);
         }
 
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            Player p = (Player)players[i];
+            UnityEngine.Debug.Log("Events: " + p.userCommandList.Count);
+            UnityEngine.Debug.Log("Last used event index: " + playerEventIndexes[i]);
+        }
+        
         DeleteUsedEvents(players, playerEventIndexes);
 
         // take and store a snapshot of the world state TODO future
@@ -150,46 +150,45 @@ public class ServerLoop
         }
     }
 
-    public float GetEventsMinimalTime(List<Player> players, List<int> eventsFromIndexes, List<bool> takeEvent)
+    public float GetEventsMinimalTime(List<Player> players, List<int> eventsFromIndexes)
     {
         float ret = NoMoreEvents;
         ServerUserCommand curr;
-        if (players.Count == 0 || takeEvent.Count == 0)
+        if (players.Count == 0)
             return ret;
         
         for (int i = 0; i < eventsFromIndexes.Count; i++)
         {
             curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
+            UnityEngine.Debug.Log(curr);
             if (curr != null)
             {
                 if (curr.serverRecTime < ret || ret == NoMoreEvents)
+                {
                     ret = curr.serverRecTime;
+                }
             }
-        }
-
-        for (int i = 0; i < eventsFromIndexes.Count; i++)
-        {
-            curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
-            // If there is an event and it equals to the ret time then that client event needs to be played.
-            if (curr != null && curr.serverRecTime == ret)
-                takeEvent[i] = true;
         }
 
         return ret;
     }
 
-    public List<ServerUserCommand> GetEvents(List<Player> players, List<int> eventsFromIndexes, List<bool> takeEvent)
+    public List<ServerUserCommand> GetEvents(List<Player> players, List<int> eventsFromIndexes, float minimumTime)
     {
         List<ServerUserCommand> ret = new List<ServerUserCommand>();
 
-        if (players.Count == 0 || takeEvent.Count == 0)
+        if (players.Count == 0)
             return ret;
 
-        for (int i = 0; i < eventsFromIndexes.Count; i++)
+        ServerUserCommand curr;
+        for (int i = 0; i < players.Count; i++)
         {
-            if (takeEvent[i]) 
+            curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
+            UnityEngine.Debug.Log(curr);
+            // If there is an event and it equals to the minimal time then that client event needs to be played.
+            if (curr != null && curr.serverRecTime == minimumTime)
             {
-                ret.Add(players[i].userCommandList[eventsFromIndexes[i]]);
+                ret.Add(curr);
                 eventsFromIndexes[i]++;
             }
         }

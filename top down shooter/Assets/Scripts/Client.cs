@@ -1,16 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.UI;
-
-using System.Diagnostics;
-
-using System.IO;
-using System.Text;
 using System.Threading;
+using UnityEngine;
 
 
 public static class PacketStartTime
@@ -335,7 +330,7 @@ public class Client : MonoBehaviour
 
         Rect rect = new Rect(0, 0, w, h * 2 / 100);
         style.alignment = TextAnchor.UpperLeft;
-        style.fontSize = h * 2 / 100;
+        style.fontSize = 18;
         style.normal.textColor = Color.white;
         float msec = deltaTime * 1000.0f;
         float fps = 1.0f / deltaTime;
@@ -347,14 +342,14 @@ public class Client : MonoBehaviour
     {
         GUIStyle style = new GUIStyle();
 
-        Rect rect = new Rect(90, 0, w, h * 2 / 100);
-        style.alignment = TextAnchor.UpperLeft;
-        style.fontSize = h * 2 / 100;
+        Rect rect = new Rect(-20, 0, w, h * 2 / 100);
+        style.alignment = TextAnchor.UpperRight;
+        style.fontSize = 18;
         style.normal.textColor = Color.white;
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         Vector2 mouseDir = mousePos - (Vector2)playerLocal.transform.position;
         float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
-        string text = "Angle: " + zAngle.ToString();
+        string text = String.Format("Angle: {0:0.00}", zAngle);
         GUI.Label(rect, text, style);
     }
 

@@ -170,8 +170,6 @@ public class Server : MonoBehaviour
         isRunning = true;
         while (isRunning)
         {
-            // Not very nice yet still working. Since client spam
-            Thread.Sleep(40);
             Inputs = InputsOG.ToList();
             Errors = InputsOG.ToList();
 

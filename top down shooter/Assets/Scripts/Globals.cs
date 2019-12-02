@@ -15,13 +15,6 @@ public class Globals
         data.CopyTo(ret, lengthPrefix.Length);
 
         return ret;
-        /*
-        byte[] dataLength = BitConverter.GetBytes(data.Length);
-        byte[] ret = new byte[dataLength.Length + data.Length];
-        Buffer.BlockCopy(dataLength, 0, ret, 0, dataLength.Length);
-        Buffer.BlockCopy(data, 0, ret, dataLength.Length, data.Length);
-        return ret;
-        */
     }
 
     public static int DeSerializePrefix(byte[] data, int offset)
