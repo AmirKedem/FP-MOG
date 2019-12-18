@@ -52,6 +52,18 @@ public class ServerLoop
 
     public byte[] GetSnapshot()
     {
+        UnityEngine.Debug.Log("Start Test");
+
+        var ser = wm.Serialize();
+        UnityEngine.Debug.Log(ser.Length);
+
+
+        var deser = wm.DeSerialize(ser);
+        UnityEngine.Debug.Log(deser);
+        UnityEngine.Debug.Log(deser.serverTick);
+        UnityEngine.Debug.Log(deser.playersState.Count);
+        UnityEngine.Debug.Log(deser.raysState.Count);
+
         return wm.Serialize();
     }
 
@@ -160,7 +172,6 @@ public class ServerLoop
         for (int i = 0; i < eventsFromIndexes.Count; i++)
         {
             curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
-            UnityEngine.Debug.Log(curr);
             if (curr != null)
             {
                 if (curr.serverRecTime < ret || ret == NoMoreEvents)
@@ -184,7 +195,6 @@ public class ServerLoop
         for (int i = 0; i < players.Count; i++)
         {
             curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
-            UnityEngine.Debug.Log(curr);
             // If there is an event and it equals to the minimal time then that client event needs to be played.
             if (curr != null && curr.serverRecTime == minimumTime)
             {

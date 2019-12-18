@@ -146,16 +146,22 @@ public class Client : MonoBehaviour
 
             // Process message in stream.
             data = ms.ToArray();
-            if (data.Length == 4)
+            if (data.Length == 2)
             {
                 // Connection We get our own ID.
-                myId = BitConverter.ToInt32(data, 0);
+                int dataOffset = 0;
+                myId = NetworkUtils.DeserializeUshort(data, ref dataOffset);
+
                 UnityEngine.Debug.Log("My ID Is: " + myId);
                 received = true;
             } 
-            else {
-                var newWorldState = wm.DeSerialize(data);
+            else 
+            {
                 UnityEngine.Debug.Log("New World State");
+                UnityEngine.Debug.Log("Received: " + data.Length);
+
+                var newWorldState = wm.DeSerialize(data);
+                
                 if (ws != null)
                 {
                     lock (ws)
@@ -240,9 +246,7 @@ public class Client : MonoBehaviour
                 lock (ws)
                 {
                     DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
-                    UnityEngine.Debug.Log("New State");
-                    UnityEngine.Debug.Log(DisconnectedPlayersIds.Count);
-                    UnityEngine.Debug.Log(ws.playersState.Count);
+
                     foreach (PlayerState ps in ws.playersState)
                     {
                         // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
@@ -252,7 +256,6 @@ public class Client : MonoBehaviour
                         {
                             // Update Scene from the new given State
                             PlayerFromId[ps.playerId].FromState(ps);
-                            UnityEngine.Debug.Log(ps.playerId + " At " + PlayerFromId[ps.playerId].obj.transform.position);
                         }
                         else
                         {

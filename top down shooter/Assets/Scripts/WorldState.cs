@@ -3,49 +3,42 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
 
 public class WorldManager
 {
-    WorldState Snapshot;
+    WorldState snapshot;
 
     public WorldManager()
     {
-        Snapshot = new WorldState(0);
+        snapshot = new WorldState(0);
     }
 
     public void TakeSnapshot(List<Player> players, int serverTick)
     {
-        Snapshot = new WorldState(serverTick);
+        snapshot = new WorldState(serverTick);
         foreach (Player p in players)
         {
             if (p.obj != null)
-                Snapshot.AddState(p.GetState());
+                snapshot.AddState(p.GetState());
         }
     }
 
     public byte[] Serialize()
     {
-        MemoryStream ms = new MemoryStream();
-        BinaryFormatter formatter = new BinaryFormatter();
-
-        formatter.Serialize(ms, Snapshot);
-        return ms.ToArray();
+        List<byte> pkt = new List<byte>();
+        snapshot.AddBytesTo(pkt);
+        return pkt.ToArray();
     }
 
     public WorldState DeSerialize(byte[] bytes)
     {
-        MemoryStream ms = new MemoryStream();
-        BinaryFormatter formatter = new BinaryFormatter();
-        ms = new MemoryStream(bytes);
-
-        Snapshot = (WorldState) formatter.Deserialize(ms);
-        return Snapshot;
+        int offset = 0;
+        snapshot = new WorldState(bytes, ref offset);
+        return snapshot;
     }  
 }
 
-[Serializable]
+
 public class WorldState
 {
     public int serverTick;
@@ -66,6 +59,35 @@ public class WorldState
     {
         raysState.Add(state);
     }
+
+    // Deserialize data received.
+    public WorldState(byte[] data, ref int offset)
+    {
+        serverTick = NetworkUtils.DeserializeInt(data, ref offset);
+        ushort len;
+
+        len = NetworkUtils.DeserializeUshort(data, ref offset);
+        for (int i = 0; i < len; i++)
+            AddState(new PlayerState(data, ref offset));
+
+        len = NetworkUtils.DeserializeUshort(data, ref offset);
+        for (int i = 0; i < len; i++)
+            AddState(new RayState(data, ref offset));
+    }
+
+    // Serializes this object and add it as bytes to a given byte list.
+    public void AddBytesTo(List<byte> byteList)
+    {
+        NetworkUtils.SerializeInt(byteList, serverTick);
+
+        NetworkUtils.SerializeUshort(byteList, (ushort) playersState.Count);
+        foreach (var playerState in playersState)
+            playerState.AddBytesTo(byteList);
+
+        NetworkUtils.SerializeUshort(byteList, (ushort) raysState.Count);
+        foreach (var rayState in raysState)
+            rayState.AddBytesTo(byteList);
+    }
 }
 
 
@@ -73,36 +95,50 @@ public static class ClientManager
 {
     public static byte[] Serialize(ClientInput ci)
     {
-        MemoryStream ms = new MemoryStream();
-        BinaryFormatter formatter = new BinaryFormatter();
-
-        formatter.Serialize(ms, ci);
-        return ms.ToArray();
+        List<byte> pkt = new List<byte>();
+        ci.AddBytesTo(pkt);
+        return pkt.ToArray();
     }
 
     public static ClientInput DeSerialize(byte[] bytes)
     {
-        MemoryStream ms = new MemoryStream();
-        BinaryFormatter formatter = new BinaryFormatter();
-        ms = new MemoryStream(bytes);
-
-        return (ClientInput) formatter.Deserialize(ms);
+        int offset = 0;
+        return new ClientInput(bytes, ref offset);
     }
 }
 
 
-[Serializable]
 public class ClientInput
 {
     public List<InputEvent> inputEvents = new List<InputEvent>();
+
+    public ClientInput() { }
 
     public void AddEvent(InputEvent ie)
     {
         inputEvents.Add(ie);
     }
+
+    // Deserialize data received.
+    public ClientInput(byte[] data, ref int offset)
+    {
+        ushort len;
+
+        len = NetworkUtils.DeserializeUshort(data, ref offset);
+        for (int i = 0; i < len; i++)
+            AddEvent(new InputEvent(data, ref offset));
+    }
+
+    // Serializes this object and add it as bytes to a given byte list.
+    public void AddBytesTo(List<byte> byteList)
+    {
+        NetworkUtils.SerializeUshort(byteList, (ushort) inputEvents.Count);
+        foreach (var ie in inputEvents)
+            ie.AddBytesTo(byteList);
+    }
 }
 
-[Serializable]
+
 public struct InputEvent
 {
     public int serverTick;
@@ -117,36 +153,88 @@ public struct InputEvent
         this.zAngle = zAngle;
         this.mouseDown = mouseDown;
     }
-}
 
-[Serializable]
-public struct PlayerState
-{
-    public float[] pos;
-    public float[] vel;
-    public float zAngle;
-    public int playerId;
-
-    public PlayerState(Vector2 pos, Vector2 vel, float zAngle, int playerId)
+    // Deserialize data received.
+    public InputEvent(byte[] data, ref int offset)
     {
-        this.pos = new float[] { pos.x, pos.y };
-        this.vel = new float[] { vel.x, vel.y }; 
-        this.zAngle = zAngle;
-        this.playerId = playerId;
+        serverTick = NetworkUtils.DeserializeInt(data, ref offset);
+        deltaTime = NetworkUtils.DeserializeFloat(data, ref offset);
+        zAngle = NetworkUtils.DeserializeFloat(data, ref offset);
+        mouseDown = NetworkUtils.DeserializeBool(data, ref offset);
+    }
+
+    // Serializes this object and add it as bytes to a given byte list.
+    public void AddBytesTo(List<byte> byteList)
+    {
+        NetworkUtils.SerializeInt(byteList, serverTick);
+        NetworkUtils.SerializeFloat(byteList, deltaTime);
+        NetworkUtils.SerializeFloat(byteList, zAngle);
+        NetworkUtils.SerializeBool(byteList, mouseDown);
     }
 }
 
-[Serializable]
+
+public struct PlayerState
+{
+    public ushort playerId;
+    public float zAngle;
+    public Vector2 pos;
+    public Vector2 vel;
+
+    public PlayerState(ushort playerId, float zAngle, Vector2 pos, Vector2 vel)
+    {
+        this.playerId = playerId;
+        this.zAngle = zAngle;
+        this.pos = pos;
+        this.vel = vel;
+    }
+
+    // Deserialize data received.
+    public PlayerState(byte[] data, ref int offset)
+    {
+        playerId = NetworkUtils.DeserializeUshort(data, ref offset);
+        zAngle = NetworkUtils.DeserializeFloat(data, ref offset);
+        pos = NetworkUtils.DeserializeVector2(data, ref offset);
+        vel = NetworkUtils.DeserializeVector2(data, ref offset);
+    }
+
+    // Serializes this object and add it as bytes to a given byte list.
+    public void AddBytesTo(List<byte> byteList)
+    {
+        NetworkUtils.SerializeUshort(byteList, playerId);
+        NetworkUtils.SerializeFloat(byteList, zAngle);
+        NetworkUtils.SerializeVector2(byteList, pos);
+        NetworkUtils.SerializeVector2(byteList, vel);
+    }
+}
+
+
 public struct RayState
 {
-    public float[] pos;
+    public ushort owner;
     public float zAngle;
-    public int owner;
+    public Vector2 pos;
 
-    public RayState(Vector2 pos, float zAngle, int shooterId)
+    public RayState(ushort owner, float zAngle, Vector2 pos)
     {
-        this.pos = new float[] { pos.x, pos.y };
+        this.owner = owner;
         this.zAngle = zAngle;
-        this.owner = shooterId;
+        this.pos = pos;
+    }
+
+    // Deserialize data received.
+    public RayState(byte[] data, ref int offset)
+    {
+        owner = NetworkUtils.DeserializeUshort(data, ref offset);
+        zAngle = NetworkUtils.DeserializeFloat(data, ref offset);
+        pos = NetworkUtils.DeserializeVector2(data, ref offset);
+    }
+
+    // Serializes this object and add it as bytes to a given byte list.
+    public void AddBytesTo(List<byte> byteList)
+    {
+        NetworkUtils.SerializeUshort(byteList, owner);
+        NetworkUtils.SerializeFloat(byteList, zAngle);
+        NetworkUtils.SerializeVector2(byteList, pos);
     }
 }

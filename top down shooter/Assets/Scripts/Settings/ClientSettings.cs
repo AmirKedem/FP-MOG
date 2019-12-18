@@ -8,7 +8,7 @@ public class ClientSettings : MonoBehaviour
     float ticksPerSecond = 1f;
 
     [SerializeField]
-    int frameRate;
+    int frameRate = 60;
 
     void Awake()
     {

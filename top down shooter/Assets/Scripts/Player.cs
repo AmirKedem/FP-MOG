@@ -5,8 +5,8 @@ using UnityEngine;
 
 public class Player
 {
-    static int playerIdCount = 0;
-    public int playerId;
+    static ushort playerIdCount = 0;
+    public ushort playerId;
     public GameObject obj;
     public Rigidbody2D rb;
 
@@ -19,12 +19,12 @@ public class Player
         playerId = GetPlayerId();
     }
 
-    public Player(int id)
+    public Player(ushort id)
     {
         playerId = id;
     }
 
-    public static int GetPlayerId()
+    public static ushort GetPlayerId()
     {
         playerIdCount++;
         return playerIdCount;
@@ -32,7 +32,7 @@ public class Player
 
     public PlayerState GetState()
     {
-        return new PlayerState(obj.transform.position, rb.velocity, obj.transform.eulerAngles.z, playerId);
+        return new PlayerState(playerId, obj.transform.eulerAngles.z, obj.transform.position, rb.velocity);
     }
 
     public void FromState(PlayerState ps)
