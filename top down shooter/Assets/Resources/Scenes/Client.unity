@@ -449,6 +449,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1596326376}
   - component: {fileID: 1596326375}
+  - component: {fileID: 1596326377}
   m_Layer: 0
   m_Name: Client
   m_TagString: Untagged
@@ -468,6 +469,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f5c557dedfd3f6c4aa9ba8711cfedca1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cam: {fileID: 0}
   playerPrefab: {fileID: 1464371581689386910, guid: ab5dafe78d937a84e85078735a184036,
     type: 3}
   playerLocal: {fileID: 714233840}
@@ -485,3 +487,17 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1596326377
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1596326374}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e63833c74b659647a22b033d174c212, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cam: {fileID: 74434411}
+  playerLocal: {fileID: 714233840}

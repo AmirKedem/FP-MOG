@@ -33,6 +33,7 @@ public static class PacketStartTime
 
 public class Client : MonoBehaviour
 {
+    [SerializeField] private Camera cam;
     [SerializeField] private GameObject playerPrefab;
     [SerializeField] private GameObject playerLocal;
 
@@ -50,9 +51,6 @@ public class Client : MonoBehaviour
     // ManualResetEvent instances signal completion.  
     private static ManualResetEvent connectDone =
         new ManualResetEvent(false);
-
-    float deltaTime = 0.0f;
-    int w = Screen.width, h = Screen.height;
 
     private static void ConnectCallback(IAsyncResult ar)
     {
@@ -93,8 +91,9 @@ public class Client : MonoBehaviour
             Socket client = (Socket) ar.AsyncState;
             // Complete sending the data to the remote device.  
             int bytesSent = client.EndSend(ar);
-            string str = string.Format("Sent {0} bytes to server.", bytesSent);
-            UnityEngine.Debug.Log(str);
+
+            // string str = string.Format("Sent {0} bytes to server.", bytesSent);
+            // UnityEngine.Debug.Log(str);
         }
         catch (Exception e)
         {
@@ -122,7 +121,7 @@ public class Client : MonoBehaviour
             // Receive the response from the remote device.
             if (offset >= bytesRec) {
                 bytesRec = sock.Receive(buffer);
-                UnityEngine.Debug.Log("bytesRec: " + bytesRec);
+                // UnityEngine.Debug.Log("bytesRec: " + bytesRec);
                 offset = 0;
             }
 
@@ -157,9 +156,6 @@ public class Client : MonoBehaviour
             } 
             else 
             {
-                UnityEngine.Debug.Log("New World State");
-                UnityEngine.Debug.Log("Received: " + data.Length);
-
                 var newWorldState = wm.DeSerialize(data);
                 
                 if (ws != null)
@@ -214,6 +210,7 @@ public class Client : MonoBehaviour
 
     void Start()
     {
+        cam = Camera.main;
         wm = new WorldManager();
 
         Thread thr = new Thread(new ThreadStart(StartClient));
@@ -292,7 +289,6 @@ public class Client : MonoBehaviour
 
     private void Update()
     {
-        deltaTime += (Time.unscaledDeltaTime - deltaTime) * 0.1f;
         if (Input.GetKey(KeyCode.Escape))
         {
             sock.Shutdown(SocketShutdown.Both);
@@ -304,56 +300,24 @@ public class Client : MonoBehaviour
         if (ci == null)
             return;
 
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
         Vector2 mouseDir = mousePos - (Vector2) playerLocal.transform.position;
         float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
         bool mouseDown = false;
 
         // Fire Button is Down.
         if (Input.GetMouseButtonDown(0))
+        {
+            UnityEngine.Debug.Log("Pressed primary button.");
             mouseDown = true;
+            UnityEngine.Debug.DrawRay(playerLocal.transform.position, mouseDir * 10f);
+        }
 
         if (ci.inputEvents.Count == 0)
             PacketStartTime.StartStopWatch();
 
         InputEvent newInputEvent = new InputEvent(0, PacketStartTime.Time, zAngle, mouseDown);
         ci.AddEvent(newInputEvent);
-
-    }
-
-    private void OnGUI()
-    {
-        FPSCounter();
-        AngleLabel();
-    }
-
-    private void FPSCounter()
-    {
-        GUIStyle style = new GUIStyle();
-
-        Rect rect = new Rect(0, 0, w, h * 2 / 100);
-        style.alignment = TextAnchor.UpperLeft;
-        style.fontSize = 18;
-        style.normal.textColor = Color.white;
-        float msec = deltaTime * 1000.0f;
-        float fps = 1.0f / deltaTime;
-        string text = string.Format("{0:0.0} ms ({1:0.} fps)", msec, fps);
-        GUI.Label(rect, text, style);
-    }
-
-    private void AngleLabel()
-    {
-        GUIStyle style = new GUIStyle();
-
-        Rect rect = new Rect(-20, 0, w, h * 2 / 100);
-        style.alignment = TextAnchor.UpperRight;
-        style.fontSize = 18;
-        style.normal.textColor = Color.white;
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mouseDir = mousePos - (Vector2)playerLocal.transform.position;
-        float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
-        string text = String.Format("Angle: {0:0.00}", zAngle);
-        GUI.Label(rect, text, style);
     }
 
 }
