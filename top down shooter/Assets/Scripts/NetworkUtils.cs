@@ -49,7 +49,6 @@ public static class NetworkUtils
         return ret;
     }
 
-
     public static ushort DeserializeUshort(byte[] data, ref int offset)
     {
         ushort ret = BitConverter.ToUInt16(data, offset);

@@ -21,6 +21,8 @@ public static class StopWacthTime
 
 public class ServerLoop
 {
+    // Body + head distance from the middle of the body
+    const float bodyRadius = 0.5f/2f + 0.3f/2f + 0.01f;
     const int NoMoreEvents = -1;
     float tickDuration = Time.fixedDeltaTime;
     int tick = 0;
@@ -87,6 +89,7 @@ public class ServerLoop
             p.MergeWithBuffer();
             ApplyVelocity(p);
         }
+
         // Simulate Till first event
         // or Till the end Tick Time if there is no event from the clients.
         currEventsTime = GetEventsMinimalTime(players, playerEventIndexes);
@@ -194,6 +197,9 @@ public class ServerLoop
 
     public void ApplyGameplay(Player player, InputEvent ie)
     {
+        if (player.obj == null)
+            return;
+
         float zAngle = Mathf.Repeat(ie.zAngle, 360);
         player.obj.transform.rotation = Quaternion.Euler(0, 0, zAngle);
 
@@ -207,47 +213,57 @@ public class ServerLoop
 
     public void ApplyVelocity(Player player)
     {
+        if (player.obj == null)
+            return;
+
         float zAngle = (player.obj.transform.rotation.eulerAngles.z) * Mathf.Deg2Rad;
         player.rb.velocity = new Vector2(Mathf.Cos(zAngle) * speedFactor, Mathf.Sin(zAngle) * speedFactor);
     }
 
     public void FireRay(Player player)
     {
+        if (player.obj == null)
+            return;
+
         UnityEngine.Debug.Log("Player " + player.obj.name + " Fire");
         Vector2 pos = player.obj.transform.position;
 
         float zAngle = (player.obj.transform.rotation.eulerAngles.z) * Mathf.Deg2Rad;
         Vector2 headingDir = new Vector2(Mathf.Cos(zAngle), Mathf.Sin(zAngle));
 
-
         UnityEngine.Debug.DrawRay(pos, headingDir * 10f);
         // Cast a ray straight down.
-        RaycastHit2D[] ray = Physics2D.RaycastAll(pos, headingDir);
-        
-        foreach (var hit in ray)
+        //RaycastHit2D[] ray = Physics2D.RaycastAll(pos + headingDir * bodyRadius, headingDir);
+        RaycastHit2D hit = Physics2D.Raycast(pos + headingDir * bodyRadius, headingDir);
+
+        // Calculate the distance from the surface
+        // float distance = Vector2.Distance(pos, hit.point);
+        Vector2 intersect = hit.point;
+        GameObject hitPlayer = hit.collider.gameObject;
+
+        if (hit.collider.gameObject.name == "Head")
         {
-            if (hit.collider.name == player.obj.name)
-                continue;
-            // Calculate the distance from the surface
-            // float distance = Vector2.Distance(pos, hit.point);
+            string hitPlayerID = hitPlayer.transform.parent.name;
 
-            Vector2 intersect = hit.point;
+            UnityEngine.Debug.Log("Player " + player.playerId + " Headshot Player " + hitPlayerID);
 
-            // Apply the force to the rigidbody.
-            if (hit.rigidbody != null)
-            {
-                hit.rigidbody.AddForce(headingDir * 50f);
-                UnityEngine.Debug.Log("Hit: " + intersect);
-            }
-            // DEBUG
-            GameObject circ = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            circ.transform.position = intersect;
-            circ.transform.localScale = new Vector3(2f, 2f, 2f);
+            GameObject.Destroy(hitPlayer.transform.parent.gameObject);
+        } 
+        else if (hit.collider.gameObject.CompareTag("Player"))
+        {
+            string hitPlayerID = hitPlayer.name;
 
-            GameObject.Destroy(circ, 0.25f);
-            // DEBUG
+            UnityEngine.Debug.Log("Player " + player.playerId + " Bodyshot Player " + hitPlayerID);
+
+            GameObject.Destroy(hitPlayer);
         }
 
+        // DEBUG
+        GameObject circ = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        circ.transform.position = intersect;
+        circ.transform.localScale = new Vector3(1f, 1f, 1f);
+
+        GameObject.Destroy(circ, 0.25f);
     }
 }
 

@@ -52,16 +52,19 @@ public class Client : MonoBehaviour
     private static ManualResetEvent connectDone =
         new ManualResetEvent(false);
 
+    private static bool isConnected = false;
+
     private static void ConnectCallback(IAsyncResult ar)
     {
         try
         {
             // Retrieve the socket from the state object.  
-            Socket client = (Socket)ar.AsyncState;
+            Socket client = (Socket) ar.AsyncState;
 
             // Complete the connection.  
             client.EndConnect(ar);
 
+            isConnected = true;
             string str = string.Format("Socket connected to {0}", client.RemoteEndPoint.ToString());
             UnityEngine.Debug.Log(str);
             // Signal that the connection has been made.  
@@ -78,9 +81,19 @@ public class Client : MonoBehaviour
         // Adding a Length prefix to the data.
         byte[] byteData = Globals.Serializer(data);
 
-        // Begin sending the data to the remote device.  
-        sock.BeginSend(byteData, 0, byteData.Length, 0,
-            new AsyncCallback(SendCallback), sock);
+        try
+        {
+            if (sock != null)
+            {
+                // Begin sending the data to the remote device.  
+                sock.BeginSend(byteData, 0, byteData.Length, 0,
+                    new AsyncCallback(SendCallback), sock);
+            }
+        }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.Log($"Error sending data {e}");
+        }
     }
 
     private static void SendCallback(IAsyncResult ar)
@@ -120,13 +133,12 @@ public class Client : MonoBehaviour
         {
             // Receive the response from the remote device.
             if (offset >= bytesRec) {
-                bytesRec = sock.Receive(buffer);
-                // UnityEngine.Debug.Log("bytesRec: " + bytesRec);
-                offset = 0;
+                if (SafeReceive(ref buffer, ref bytesRec, ref offset))
+                    return;
             }
 
             len = Globals.DeSerializePrefix(buffer, offset);
-            offset += 4; // Int length in Bytes.
+            offset += sizeof(int);
 
             while (len > 0)
             {
@@ -138,41 +150,70 @@ public class Client : MonoBehaviour
                 if (len > 0)
                 {
                     // The left over of the previous message.
-                    bytesRec = sock.Receive(buffer);
-                    offset = 0;
+                    if (SafeReceive(ref buffer, ref bytesRec, ref offset))
+                        return;
                 }
             }
 
-            // Process message in stream.
+            // Process one message from the stream.
             data = ms.ToArray();
-            if (data.Length == 2)
-            {
-                // Connection We get our own ID.
-                int dataOffset = 0;
-                myId = NetworkUtils.DeserializeUshort(data, ref dataOffset);
+            ProcessMessage(data);
+            // Clear the buffer.
+            ms.SetLength(0);
+        }
+    }
 
-                UnityEngine.Debug.Log("My ID Is: " + myId);
-                received = true;
-            } 
-            else 
+    private bool SafeReceive(ref byte[] buffer, ref int bytesRec, ref int offset)
+    {
+        try
+        {
+            bytesRec = sock.Receive(buffer);
+
+            // Which means an empty packet
+            if (bytesRec <= sizeof(int))
             {
-                var newWorldState = wm.DeSerialize(data);
-                
-                if (ws != null)
-                {
-                    lock (ws)
-                    {
-                        ws = newWorldState;
-                    }
-                } 
-                else
+                Disconnect();
+                return true;
+            }
+        }
+        catch
+        {
+            Disconnect();
+            return true;
+        }
+
+        offset = 0;
+        return false;
+    } 
+
+    private void ProcessMessage(byte[] data)
+    {
+        // Process one message from a byte array.
+        if (data.Length == sizeof(ushort))
+        {
+            // Connection Message
+            // Here we get our own ID.
+            int dataOffset = 0;
+            myId = NetworkUtils.DeserializeUshort(data, ref dataOffset);
+
+            UnityEngine.Debug.Log("My ID Is: " + myId);
+            received = true;
+        }
+        else
+        {
+            var newWorldState = wm.DeSerialize(data);
+
+            if (ws != null)
+            {
+                lock (ws)
                 {
                     ws = newWorldState;
                 }
             }
-            // End of the message processing.
-            // Clear  the buffer.
-            ms.SetLength(0);
+            else
+            {
+                ws = newWorldState;
+            }
         }
     }
 
@@ -193,14 +234,10 @@ public class Client : MonoBehaviour
                 new AsyncCallback(ConnectCallback), sock);
             connectDone.WaitOne();
             // Setup done, ConnectDone.
-            UnityEngine.Debug.Log("Connected");
-            // open receive thread
+            UnityEngine.Debug.Log("Connected, Setup Done");
+            // Start the receive thread.
             Thread recThr = new Thread(new ThreadStart(ReceiveLoop));
             recThr.Start();
-
-            //// open send thread
-            //Thread sndThr = new Thread(new ThreadStart(SendLoop));
-            //sndThr.Start();
         }
         catch (Exception e)
         {
@@ -219,6 +256,7 @@ public class Client : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Here we deal with the networking part
         if (!PlayerFromId.ContainsKey(myId))
         {
             if (received)
@@ -320,4 +358,21 @@ public class Client : MonoBehaviour
         ci.AddEvent(newInputEvent);
     }
 
+    void OnApplicationQuit()
+    {
+        UnityEngine.Debug.Log("Application Quit\nClosing Socket");
+        Disconnect();
+    }
+
+    private void Disconnect()
+    {
+        if (isConnected)
+        {
+            isConnected = false;
+
+            sock.Close();
+
+            UnityEngine.Debug.Log("Disconnected from the Server");
+        }
+    }
 }

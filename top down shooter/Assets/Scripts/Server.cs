@@ -85,6 +85,7 @@ public class Server : MonoBehaviour
     private static List<Socket> ErrorsOG = new List<Socket>();
 
     public static Dictionary<Socket, User> clients = new Dictionary<Socket, User>();
+    public static List<Socket> disconnectedClients = new List<Socket>();
 
     private void Start()
     {
@@ -109,6 +110,21 @@ public class Server : MonoBehaviour
         }
 
         // Every tick we call update function which will process all the user commands and apply them to the physics world.
+        lock (disconnectedClients)
+        {
+            foreach (var disconnectedSock in disconnectedClients)
+            {
+                GameObject.Destroy(clients[disconnectedSock].player.obj);
+
+                lock (clients)
+                {
+                    clients.Remove(disconnectedSock);
+                }
+            }
+
+            disconnectedClients.Clear();
+        }
+
         serverLoop.Update(clients.Values.Select(x => x.player).ToList());
 
         byte[] snapshot = serverLoop.GetSnapshot();
@@ -143,7 +159,7 @@ public class Server : MonoBehaviour
         try
         {
             listenerSocket.Bind(localEndPoint);
-            listenerSocket.Listen(100);
+            listenerSocket.Listen(MaximumPlayers);
 
             Thread selectThr = new Thread(StartListening);
             selectThr.Start();
@@ -157,15 +173,14 @@ public class Server : MonoBehaviour
 
     public void StartListening()
     {
-        Console.WriteLine("Main Loop");
-
-        InputsOG.Add(listenerSocket);
-
         List<Socket> Inputs;
         List<Socket> Errors;
 
         Socket tmp;
         User usr;
+
+        Console.WriteLine("Main Loop");
+        InputsOG.Add(listenerSocket);
 
         isRunning = true;
         while (isRunning)
@@ -201,18 +216,29 @@ public class Server : MonoBehaviour
                 }
                 else
                 {
-                    usr = clients[sock];
-                    usr.bytesRec = sock.Receive(usr.buffer, 0, usr.buffer.Length, 0);
+                    try
+                    {
+                        if (sock != null)
+                        {
+                            usr = clients[sock];
+                            usr.bytesRec = sock.Receive(usr.buffer, 0, usr.buffer.Length, 0);
 
-                    if (usr.bytesRec <= 0)
-                    {
-                        Console.WriteLine("Client Disconnected empty Message");
-                        OnUserDisconnect(sock);
+                            if (usr.bytesRec <= 0)
+                            {
+                                Console.WriteLine("Client Disconnected empty Message");
+                                OnUserDisconnect(sock);
+                            }
+                            else
+                            {
+                                // Receive the data.
+                                usr.ReceiveOnce();
+                            }
+                        }
                     }
-                    else
+                    catch
                     {
-                        // Receive the data.
-                        usr.ReceiveOnce();
+                        Console.WriteLine("Client Disconnected Couldn't Receive Message");
+                        OnUserDisconnect(sock);
                     }
                 }
             }
@@ -250,14 +276,17 @@ public class Server : MonoBehaviour
 
     static void CloseServer()
     {
-        isRunning = false;
+        if (listenerSocket == null)
+            return;
 
-        try
-        {
-            listenerSocket.Shutdown(SocketShutdown.Both);
+        if (isRunning) {
+            isRunning = false;
+
+            if (listenerSocket.Connected)
+                listenerSocket.Shutdown(SocketShutdown.Both);
             listenerSocket.Close();
-        } 
-        catch (SocketException) { }
+            listenerSocket = null;
+        }
     }
 
     static void OnUserDisconnect(Socket sock)
@@ -266,12 +295,10 @@ public class Server : MonoBehaviour
         {
             sock.Close();
 
-            try
+            lock (disconnectedClients)
             {
-                Destroy(clients[sock].player.obj);
-            } catch { }     
-
-            clients.Remove(sock);
+                disconnectedClients.Add(sock);
+            }
 
             InputsOG.Remove(sock);
             OutputsOG.Remove(sock);

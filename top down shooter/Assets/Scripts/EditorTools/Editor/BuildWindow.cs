@@ -79,6 +79,20 @@ public class BuildWindow : EditorWindow
 
         GUILayout.TextArea(Application.dataPath.BeforeLast("Assets"));
 
+        GUILayout.Space(5.0f);
+
+        if (GUILayout.Button("Open Main Folder"))
+        {
+            BuildUtils.OpenProjectFolder(2);
+            GUIUtility.ExitGUI();
+        }
+
+        if (GUILayout.Button("Open Project Folder"))
+        {
+            BuildUtils.OpenProjectFolder(1);
+            GUIUtility.ExitGUI();
+        }
+
         DrawBuild();
 
         GUILayout.Space(10.0f);
@@ -120,6 +134,11 @@ public class BuildWindow : EditorWindow
         }
         GUILayout.EndHorizontal();
 
+        if (GUILayout.Button("Open Builds Folder"))
+        {
+            BuildUtils.RunBuild(BuildUtils.GameLoopMode.Undefined);
+            GUIUtility.ExitGUI();
+        }
 
         // Build All
         GUILayout.Label("Rebuild S.Alone", EditorStyles.boldLabel);

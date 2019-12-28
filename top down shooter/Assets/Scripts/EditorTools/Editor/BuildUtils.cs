@@ -2,6 +2,7 @@
 using System.IO;
 using UnityEngine;
 using UnityEditor;
+using System.Linq;
 
 public class BuildUtils : EditorWindow
 {
@@ -98,4 +99,12 @@ public class BuildUtils : EditorWindow
         process.Start();
     }
 
+    public static void OpenProjectFolder(int goBack)
+    {
+        var back = string.Concat(Enumerable.Repeat("/..", goBack));
+        var process = new System.Diagnostics.Process();
+        process.StartInfo.FileName = Application.dataPath + back + "/";
+        process.StartInfo.WorkingDirectory = Application.dataPath + back + "/";
+        process.Start();
+    }
 }
