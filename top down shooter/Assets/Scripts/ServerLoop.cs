@@ -21,12 +21,14 @@ public static class StopWacthTime
 
 public class ServerLoop
 {
+    float tickDuration = Time.fixedDeltaTime;
+
     // Body + head distance from the middle of the body
     const float bodyRadius = 0.5f/2f + 0.3f/2f + 0.01f;
     const int NoMoreEvents = -1;
-    float tickDuration = Time.fixedDeltaTime;
-    int tick = 0;
+
     WorldManager wm;
+    List<RayState> rayStates = new List<RayState>();
 
     float lastTickStartTime = 0;
     float speedFactor = 0.5f;
@@ -44,17 +46,18 @@ public class ServerLoop
     {
         this.playerPrefab = playerPrefab;
         wm = new WorldManager();
+        UnityEngine.Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
     }
 
     // List of rays too.
-    public void TakeSnapshot(List<Player> players)
+    public void TakeSnapshot(List<Player> players, List<RayState> rayStates)
     {
-        wm.TakeSnapshot(players, tick);
+        wm.TakeSnapshot(NetworkTick.tickSeq, players, rayStates);
     }
 
-    public byte[] GetSnapshot()
+    public WorldState GetSnapshot()
     {
-        return wm.Serialize();
+        return wm.snapshot;
     }
 
     public void Update(List<Player> players)
@@ -67,12 +70,14 @@ public class ServerLoop
         
         Take A Snap Shot of the updated world
         */
-        tick++;
+        NetworkTick.tickSeq++;
+
+        rayStates.Clear();
 
         float startTickTime = StopWacthTime.Time;
         float endTickTime = startTickTime + tickDuration;
 
-        UnityEngine.Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
+        //UnityEngine.Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
 
         float curTime = startTickTime;
         float minorJump;
@@ -130,7 +135,7 @@ public class ServerLoop
         // take and store a snapshot of the world state TODO future
         lastTickStartTime = startTickTime;
 
-        TakeSnapshot(players);
+        TakeSnapshot(players, rayStates);
     }
 
     private void DeleteUsedEvents(List<Player> players, List<int> playerEventIndexes)
@@ -231,7 +236,11 @@ public class ServerLoop
         float zAngle = (player.obj.transform.rotation.eulerAngles.z) * Mathf.Deg2Rad;
         Vector2 headingDir = new Vector2(Mathf.Cos(zAngle), Mathf.Sin(zAngle));
 
+        RayState newRay = new RayState(player.playerId, zAngle, pos);
+        rayStates.Add(newRay);
+
         UnityEngine.Debug.DrawRay(pos, headingDir * 10f);
+
         // Cast a ray straight down.
         //RaycastHit2D[] ray = Physics2D.RaycastAll(pos + headingDir * bodyRadius, headingDir);
         RaycastHit2D hit = Physics2D.Raycast(pos + headingDir * bodyRadius, headingDir);
@@ -261,9 +270,9 @@ public class ServerLoop
         // DEBUG
         GameObject circ = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         circ.transform.position = intersect;
-        circ.transform.localScale = new Vector3(1f, 1f, 1f);
+        circ.transform.localScale = new Vector3(0.75f, 0.75f, 0.75f);
 
-        GameObject.Destroy(circ, 0.25f);
+        GameObject.Destroy(circ, 0.3f);
     }
 }
 

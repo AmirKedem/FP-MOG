@@ -22,6 +22,11 @@ public static class NetworkUtils
         byteList.AddRange(BitConverter.GetBytes(data));
     }
 
+    public static void SerializeLong(List<byte> byteList, long data)
+    {
+        byteList.AddRange(BitConverter.GetBytes(data));
+    }
+
     public static void SerializeFloat(List<byte> byteList, float data)
     {
         byteList.AddRange(BitConverter.GetBytes(data));
@@ -60,6 +65,13 @@ public static class NetworkUtils
     {
         int ret = BitConverter.ToInt32(data, offset);
         offset += sizeof(int);
+        return ret;
+    }
+
+    public static long DeserializeLong(byte[] data, ref int offset)
+    {
+        long ret = BitConverter.ToInt64(data, offset);
+        offset += sizeof(long);
         return ret;
     }
 

@@ -6,48 +6,70 @@ using UnityEngine;
 
 public class WorldManager
 {
-    WorldState snapshot;
+    public WorldState snapshot;
 
     public WorldManager()
     {
         snapshot = new WorldState(0);
     }
 
-    public void TakeSnapshot(List<Player> players, int serverTick)
+    public void TakeSnapshot(int serverTick, List<Player> players, List<RayState> rayStates)
     {
         snapshot = new WorldState(serverTick);
+
         foreach (Player p in players)
         {
             if (p.obj != null)
                 snapshot.AddState(p.GetState());
         }
-    }
 
-    public byte[] Serialize()
+        foreach (RayState ray in rayStates)
+        {
+            snapshot.AddState(ray);
+        }
+    }
+}
+
+
+public static class ServerPktSerializer
+{
+    public static byte[] Serialize(WorldState ws)
     {
         List<byte> pkt = new List<byte>();
-        snapshot.AddBytesTo(pkt);
+        ws.AddBytesTo(pkt);
         return pkt.ToArray();
     }
 
-    public WorldState DeSerialize(byte[] bytes)
+    public static WorldState DeSerialize(byte[] bytes)
     {
         int offset = 0;
-        snapshot = new WorldState(bytes, ref offset);
-        return snapshot;
-    }  
+        return new WorldState(bytes, ref offset);
+    }
 }
 
 
 public class WorldState
 {
-    public int serverTick;
+    // The current Server Tick 
+    public int serverTickSeq;
+    // On which client tick this message applies.
+    public int clientTickAck;
+    // amount of milisecs
+    public long timeSpentInServerms;  
+
     public List<PlayerState> playersState = new List<PlayerState>();
     public List<RayState> raysState = new List<RayState>();
 
-    public WorldState(int serverTick)
+    public WorldState(int serverTickSeq)
     {
-        this.serverTick = serverTick;
+        this.serverTickSeq = serverTickSeq;
+    }
+
+    // Call This function just before send is being called
+    public void UpdateStatistics(int clientTickAck, long timeSpentInServerms)
+    {
+        this.clientTickAck = clientTickAck;
+        this.timeSpentInServerms = timeSpentInServerms;
     }
 
     public void AddState(PlayerState state)
@@ -63,7 +85,10 @@ public class WorldState
     // Deserialize data received.
     public WorldState(byte[] data, ref int offset)
     {
-        serverTick = NetworkUtils.DeserializeInt(data, ref offset);
+        serverTickSeq = NetworkUtils.DeserializeInt(data, ref offset);
+        clientTickAck = NetworkUtils.DeserializeInt(data, ref offset);
+        timeSpentInServerms = NetworkUtils.DeserializeLong(data, ref offset);
+
         ushort len;
 
         len = NetworkUtils.DeserializeUshort(data, ref offset);
@@ -78,7 +103,9 @@ public class WorldState
     // Serializes this object and add it as bytes to a given byte list.
     public void AddBytesTo(List<byte> byteList)
     {
-        NetworkUtils.SerializeInt(byteList, serverTick);
+        NetworkUtils.SerializeInt(byteList, serverTickSeq);
+        NetworkUtils.SerializeInt(byteList, clientTickAck);
+        NetworkUtils.SerializeLong(byteList, timeSpentInServerms);
 
         NetworkUtils.SerializeUshort(byteList, (ushort) playersState.Count);
         foreach (var playerState in playersState)
@@ -91,7 +118,7 @@ public class WorldState
 }
 
 
-public static class ClientManager
+public static class ClientPktSerializer
 {
     public static byte[] Serialize(ClientInput ci)
     {
@@ -110,9 +137,24 @@ public static class ClientManager
 
 public class ClientInput
 {
+    // The current Client Tick 
+    public int clientTickSeq;
+    // On which server tick this message applies.
+    public int serverTickAck;
+    // amount of milisecs
+    public long timeSpentInClientms;  
+
     public List<InputEvent> inputEvents = new List<InputEvent>();
 
     public ClientInput() { }
+
+    // Call This function just before send is being called
+    public void UpdateStatistics(int clientTickSeq, int serverTickAck, long timeSpentInClientms)
+    {
+        this.clientTickSeq = clientTickSeq;
+        this.serverTickAck = serverTickAck;
+        this.timeSpentInClientms = timeSpentInClientms;
+    }
 
     public void AddEvent(InputEvent ie)
     {
@@ -122,6 +164,10 @@ public class ClientInput
     // Deserialize data received.
     public ClientInput(byte[] data, ref int offset)
     {
+        clientTickSeq = NetworkUtils.DeserializeInt(data, ref offset);
+        serverTickAck = NetworkUtils.DeserializeInt(data, ref offset);
+        timeSpentInClientms = NetworkUtils.DeserializeLong(data, ref offset);
+
         ushort len;
 
         len = NetworkUtils.DeserializeUshort(data, ref offset);
@@ -132,6 +178,10 @@ public class ClientInput
     // Serializes this object and add it as bytes to a given byte list.
     public void AddBytesTo(List<byte> byteList)
     {
+        NetworkUtils.SerializeInt(byteList, clientTickSeq);
+        NetworkUtils.SerializeInt(byteList, serverTickAck);
+        NetworkUtils.SerializeLong(byteList, timeSpentInClientms);
+
         NetworkUtils.SerializeUshort(byteList, (ushort) inputEvents.Count);
         foreach (var ie in inputEvents)
             ie.AddBytesTo(byteList);
@@ -141,10 +191,10 @@ public class ClientInput
 
 public struct InputEvent
 {
-    public int serverTick;
+    public int serverTick; // For Lag Compensation.
     public float deltaTime; // The delta time from the last Server Tick.
     public float zAngle; // The angle between the mouse and the player according to the x axis.
-    public bool mouseDown;
+    public bool mouseDown; 
 
     public InputEvent(int serverTick, float deltaTime, float zAngle, bool mouseDown)
     {
@@ -170,6 +220,37 @@ public struct InputEvent
         NetworkUtils.SerializeFloat(byteList, deltaTime);
         NetworkUtils.SerializeFloat(byteList, zAngle);
         NetworkUtils.SerializeBool(byteList, mouseDown);
+    }
+}
+
+
+public struct StatsState
+{
+    public ushort playerId;
+    public int kills;
+    public long rtt;
+
+    public StatsState(ushort playerId, int kills, long rtt)
+    {
+        this.playerId = playerId;
+        this.kills = kills;
+        this.rtt = rtt;
+    }
+
+    // Deserialize data received.
+    public StatsState(byte[] data, ref int offset)
+    {
+        playerId = NetworkUtils.DeserializeUshort(data, ref offset);
+        kills = NetworkUtils.DeserializeInt(data, ref offset);
+        rtt = NetworkUtils.DeserializeLong(data, ref offset);
+    }
+
+    // Serializes this object and add it as bytes to a given byte list.
+    public void AddBytesTo(List<byte> byteList)
+    {
+        NetworkUtils.SerializeUshort(byteList, playerId);
+        NetworkUtils.SerializeInt(byteList, kills);
+        NetworkUtils.SerializeLong(byteList, rtt);
     }
 }
 

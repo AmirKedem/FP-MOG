@@ -4,6 +4,9 @@ using UnityEngine;
 
 public class ClientSettings : MonoBehaviour
 {
+    [SerializeField]
+    GameObject graphyOverlay;
+
     [SerializeField] 
     float ticksPerSecond = 1f;
 
@@ -14,6 +17,8 @@ public class ClientSettings : MonoBehaviour
     {
         if (Screen.fullScreen)
             Screen.fullScreen = !Screen.fullScreen;
+
+        graphyOverlay.SetActive(true);
 
         Application.runInBackground = true;
         Application.targetFrameRate = Mathf.Max(frameRate, 1);

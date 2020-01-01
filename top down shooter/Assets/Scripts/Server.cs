@@ -6,16 +6,16 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using System.IO;
-using System.Text;
 using System.Linq;
 using System.Threading;
 
 public class User
 {
+    public Statistics statisticsModule;
     public Player player;
     public Socket sock = null;
     // Size of receive buffer.
-    protected const int BufferSize = 1024;
+    protected const int BufferSize = 1500;
     // Receive buffer.  
     public byte[] buffer = new byte[BufferSize];
     // Received data string.
@@ -32,6 +32,7 @@ public class User
     {
         this.sock = sock;
         player = new Player();
+        statisticsModule = new Statistics();
     }
 
     public void ReceiveOnce()
@@ -54,17 +55,24 @@ public class User
             if (len == 0)
             {
                 // Process message in stream.
-                this.player.CacheClientInput(ClientManager.DeSerialize(ms.ToArray()));
+                ProcessMessage(ms.ToArray());
                 // Clean the MemoryStream.
                 ms.SetLength(0);
                 // For the next message within this recevie.
                 if (offset < bytesRec)
                 {
                     len = Globals.DeSerializePrefix(buffer, offset);
-                    offset += 4;
+                    offset += sizeof(int);
                 }
             }
         }
+    }
+
+    private void ProcessMessage(byte[] data)
+    {
+        var ci = ClientPktSerializer.DeSerialize(data);
+        statisticsModule.RecordRecvPacket(ci.clientTickSeq, ci.serverTickAck, ci.timeSpentInClientms);
+        this.player.CacheClientInput(ci);
     }
 }
 
@@ -127,14 +135,19 @@ public class Server : MonoBehaviour
 
         serverLoop.Update(clients.Values.Select(x => x.player).ToList());
 
-        byte[] snapshot = serverLoop.GetSnapshot();
+        WorldState snapshot = serverLoop.GetSnapshot();
 
         foreach (Socket sock in OutputsOG)
         {
             try
             {
-                Console.WriteLine("Fixed Update Send Reply " + snapshot.Length);
-                SendReply(clients[sock], snapshot);
+                var usr = clients[sock];
+                var statisticsModule = usr.statisticsModule;
+                snapshot.UpdateStatistics(statisticsModule.tickAck, statisticsModule.GetTimeSpentIdlems());
+
+                var message = ServerPktSerializer.Serialize(snapshot);
+                Console.WriteLine("Fixed Update Send Reply " + message.Length);
+                SendReply(usr, message);
             }
             catch
             {
@@ -146,11 +159,12 @@ public class Server : MonoBehaviour
     private void StartServer()
     {
         // Establish the local endpoint for the socket. 
-        IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-        IPAddress ipAddress = ipHostInfo.AddressList[0];
+        IPAddress ipAddress = Globals.GetLocalIPAddress();
         IPEndPoint localEndPoint = new IPEndPoint(ipAddress, Globals.port);
 
         Debug.Log("The server is running  on: " + localEndPoint.Address.ToString() + " : " + localEndPoint.Port.ToString());
+        Debug.Log("Is loopback: " + IPAddress.IsLoopback(localEndPoint.Address));
+
         // Create a TCP/IP socket.  
         listenerSocket = new Socket(ipAddress.AddressFamily,
             SocketType.Stream, ProtocolType.Tcp);
@@ -264,6 +278,7 @@ public class Server : MonoBehaviour
     void EndSend(IAsyncResult iar)
     {
         User user = (iar.AsyncState as User);
+        user.statisticsModule.RecordSentPacket();
         int BytesSent = user.sock.EndSend(iar);
         Console.WriteLine("Bytes Sent: " + BytesSent);
     }

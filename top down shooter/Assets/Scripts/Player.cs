@@ -7,6 +7,7 @@ public class Player
 {
     static ushort playerIdCount = 0;
     public ushort playerId;
+    public int rtt;
     public GameObject obj;
     public Rigidbody2D rb;
 
@@ -45,13 +46,6 @@ public class Player
     public void CacheClientInput(ClientInput ci)
     {
         userCommandBufferList.AddRange(ServerUserCommand.CreaetUserCommands(this, ci));
-        //string ret = "Number of Commands: " + userCommandList.Count + "\n";
-        //for (int i = 0; i < userCommandList.Count; i++)
-        //{
-        //    ServerUserCommand cmd = (ServerUserCommand)userCommandList[i];
-        //    ret += "Command " + i + ": " + cmd.serverRecTime + "\n";
-        //}
-        //Debug.Log(ret);
     }
 
     public void MergeWithBuffer()

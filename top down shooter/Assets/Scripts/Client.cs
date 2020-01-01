@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -10,11 +9,11 @@ using UnityEngine;
 
 public static class PacketStartTime
 {
-    static Stopwatch stopWatch;
+    static System.Diagnostics.Stopwatch stopWatch;
 
     static PacketStartTime()
     {
-        stopWatch = new Stopwatch();
+        stopWatch = new System.Diagnostics.Stopwatch();
     }
 
     public static void StartStopWatch()
@@ -40,6 +39,7 @@ public class Client : MonoBehaviour
     public static WorldManager wm;
     public static WorldState ws;
     public static ClientInput ci;
+    public static Statistics statisticsModule;
 
     private static int myId;
     private static bool received = false;
@@ -54,6 +54,9 @@ public class Client : MonoBehaviour
 
     private static bool isConnected = false;
 
+    [SerializeField]
+    private Material lineMat;
+
     private static void ConnectCallback(IAsyncResult ar)
     {
         try
@@ -66,7 +69,7 @@ public class Client : MonoBehaviour
 
             isConnected = true;
             string str = string.Format("Socket connected to {0}", client.RemoteEndPoint.ToString());
-            UnityEngine.Debug.Log(str);
+            Debug.Log(str);
             // Signal that the connection has been made.  
             connectDone.Set();
         }
@@ -92,7 +95,7 @@ public class Client : MonoBehaviour
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.Log($"Error sending data {e}");
+            Debug.Log($"Error sending data {e}");
         }
     }
 
@@ -106,11 +109,11 @@ public class Client : MonoBehaviour
             int bytesSent = client.EndSend(ar);
 
             // string str = string.Format("Sent {0} bytes to server.", bytesSent);
-            // UnityEngine.Debug.Log(str);
+            // Debug.Log(str);
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.Log(e.ToString());
+            Debug.Log(e.ToString());
         }
     }
 
@@ -196,12 +199,13 @@ public class Client : MonoBehaviour
             int dataOffset = 0;
             myId = NetworkUtils.DeserializeUshort(data, ref dataOffset);
 
-            UnityEngine.Debug.Log("My ID Is: " + myId);
+            Debug.Log("My ID Is: " + myId);
             received = true;
         }
         else
         {
-            var newWorldState = wm.DeSerialize(data);
+            var newWorldState = ServerPktSerializer.DeSerialize(data);
+            statisticsModule.RecordRecvPacket(newWorldState.serverTickSeq, newWorldState.clientTickAck, newWorldState.timeSpentInServerms);
 
             if (ws != null)
             {
@@ -223,8 +227,7 @@ public class Client : MonoBehaviour
         try
         {
             // Establish the remote endpoint for the socket.  
-            IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-            IPAddress ipAddress = ipHostInfo.AddressList[0];
+            IPAddress ipAddress = IPAddress.Parse("192.168.1.29");
             IPEndPoint remoteEP = new IPEndPoint(ipAddress, Globals.port);
             // Create a TCP/IP socket.  
             sock = new Socket(ipAddress.AddressFamily,
@@ -241,7 +244,7 @@ public class Client : MonoBehaviour
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.Log(e.ToString());
+            Debug.Log(e.ToString());
         }
     }
 
@@ -249,6 +252,7 @@ public class Client : MonoBehaviour
     {
         cam = Camera.main;
         wm = new WorldManager();
+        statisticsModule = new Statistics();
 
         Thread thr = new Thread(new ThreadStart(StartClient));
         thr.Start();
@@ -268,7 +272,7 @@ public class Client : MonoBehaviour
                 tmpP.obj.name = myId.ToString();
                 // Add myself to the list of players.
                 PlayerFromId.Add(myId, tmpP);
-                UnityEngine.Debug.Log("Logged in Setup complete");
+                Debug.Log("Logged in Setup complete");
                 // Init Player Input Events.
                 ci = new ClientInput(); 
             }
@@ -276,52 +280,78 @@ public class Client : MonoBehaviour
         else
         {
             // Check if we got a new message or not
-            if (ws != null)
-            {
-                lock (ws)
-                {
-                    DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
-
-                    foreach (PlayerState ps in ws.playersState)
-                    {
-                        // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
-                        DisconnectedPlayersIds.Remove(ps.playerId);
-
-                        if (PlayerFromId.ContainsKey(ps.playerId))
-                        {
-                            // Update Scene from the new given State
-                            PlayerFromId[ps.playerId].FromState(ps);
-                        }
-                        else
-                        {
-                            Player tmpP = new Player();
-                            tmpP.obj = GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
-                            tmpP.rb = tmpP.obj.GetComponent<Rigidbody2D>();
-                            tmpP.obj.name = "Player" + ps.playerId.ToString();
-
-                            tmpP.FromState(ps);
-
-                            PlayerFromId.Add(ps.playerId, tmpP);
-                        }
-                    }
-
-                    // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
-                    foreach (int playerId in DisconnectedPlayersIds)
-                    {
-                        Destroy(PlayerFromId[playerId].obj);
-                        PlayerFromId.Remove(playerId);
-                    }
-                }
-            }
+            RenderServerTick();
 
             // Check if we can send a new message or not
-            if (ci != null && ci.inputEvents.Count > 0)
+            ClientTick();
+        }
+    }
+
+    private void RenderServerTick()
+    {
+        if (ws != null)
+        {
+            lock (ws)
             {
-                Send(ClientManager.Serialize(ci));
-                // Clear the list of events.
-                ci.inputEvents.Clear();
-                PacketStartTime.ResetStopWatch();
+                DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
+
+                foreach (PlayerState ps in ws.playersState)
+                {
+                    // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
+                    DisconnectedPlayersIds.Remove(ps.playerId);
+
+                    if (PlayerFromId.ContainsKey(ps.playerId))
+                    {
+                        // Update Scene from the new given State
+                        PlayerFromId[ps.playerId].FromState(ps);
+                    }
+                    else
+                    {
+                        Player tmpP = new Player();
+                        tmpP.obj = GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
+                        tmpP.rb = tmpP.obj.GetComponent<Rigidbody2D>();
+                        tmpP.obj.name = "Player" + ps.playerId.ToString();
+
+                        tmpP.FromState(ps);
+
+                        PlayerFromId.Add(ps.playerId, tmpP);
+                    }
+                }
+
+                foreach (RayState rs in ws.raysState)
+                {
+                    var start = rs.pos;
+                    var headingVec = new Vector2(Mathf.Cos(rs.zAngle), Mathf.Sin(rs.zAngle));
+                    var end = start + headingVec * 100f;
+                    DrawLine(start, end, Color.yellow, 0.3f);
+                }
+
+                // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
+                foreach (int playerId in DisconnectedPlayersIds)
+                {
+                    if (playerId == myId)
+                    {
+                        Application.Quit();
+                    }
+                    Destroy(PlayerFromId[playerId].obj);
+                    PlayerFromId.Remove(playerId);
+                }
             }
+        }
+    }
+
+    private void ClientTick()
+    {
+        if (ci != null && ci.inputEvents.Count > 0)
+        {
+            // Network Tick
+            NetworkTick.tickSeq++;
+            ci.UpdateStatistics(NetworkTick.tickSeq, statisticsModule.tickAck, statisticsModule.GetTimeSpentIdlems());
+            Send(ClientPktSerializer.Serialize(ci));
+            statisticsModule.RecordSentPacket();
+            // Clear the list of events.
+            ci.inputEvents.Clear();
+            PacketStartTime.ResetStopWatch();
         }
     }
 
@@ -346,9 +376,8 @@ public class Client : MonoBehaviour
         // Fire Button is Down.
         if (Input.GetMouseButtonDown(0))
         {
-            UnityEngine.Debug.Log("Pressed primary button.");
             mouseDown = true;
-            UnityEngine.Debug.DrawRay(playerLocal.transform.position, mouseDir * 10f);
+            Debug.DrawRay(playerLocal.transform.position, mouseDir * 10f);
         }
 
         if (ci.inputEvents.Count == 0)
@@ -360,7 +389,7 @@ public class Client : MonoBehaviour
 
     void OnApplicationQuit()
     {
-        UnityEngine.Debug.Log("Application Quit\nClosing Socket");
+        Debug.Log("Application Quit\nClosing Socket");
         Disconnect();
     }
 
@@ -369,10 +398,30 @@ public class Client : MonoBehaviour
         if (isConnected)
         {
             isConnected = false;
-
             sock.Close();
 
-            UnityEngine.Debug.Log("Disconnected from the Server");
+            Debug.Log("Disconnected from the Server");
         }
+    }
+
+
+
+    // TODO put it in another class
+    void DrawLine(Vector3 start, Vector3 end, Color color, float duration = 0.15f)
+    {
+        GameObject myLine = new GameObject();
+        myLine.transform.position = start;
+        myLine.AddComponent<LineRenderer>();
+        LineRenderer lr = myLine.GetComponent<LineRenderer>();
+        lr.material = lineMat;
+        lr.startColor = color;
+        lr.endColor = color;
+        lr.startWidth = 0.05f;
+        lr.endWidth = 0.05f;
+        lr.SetPosition(0, start);
+        lr.SetPosition(1, end);
+
+        lr.sortingLayerName = "Debug";
+        GameObject.Destroy(myLine, duration);
     }
 }
