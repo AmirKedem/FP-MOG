@@ -30,7 +30,10 @@ public class User
 
     public User(Socket sock)
     {
+        // Configure  the given socket for every client.
         this.sock = sock;
+        this.sock.NoDelay = true;
+
         player = new Player();
         statisticsModule = new Statistics();
     }
@@ -41,7 +44,7 @@ public class User
         offset = 0;
         if (len == 0)
         {
-            len = Globals.DeSerializePrefix(buffer, offset);
+            len = Globals.DeSerializeLenPrefix(buffer, offset);
             offset = 4;
         }
 
@@ -61,7 +64,7 @@ public class User
                 // For the next message within this recevie.
                 if (offset < bytesRec)
                 {
-                    len = Globals.DeSerializePrefix(buffer, offset);
+                    len = Globals.DeSerializeLenPrefix(buffer, offset);
                     offset += sizeof(int);
                 }
             }
@@ -110,8 +113,11 @@ public class Server : MonoBehaviour
             for (int i = 0; i < instantiateJobs.Count; i++)
             {
                 p = instantiateJobs[i].player;
-                p.obj = serverLoop.AddPlayer(p.playerId);
-                p.rb = p.obj.GetComponent<Rigidbody2D>();
+
+                var obj = Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
+                obj.name = p.playerId.ToString();
+                p.obj = obj;
+                p.rb = obj.GetComponent<Rigidbody2D>();
             }
 
             instantiateJobs.Clear();
@@ -141,19 +147,38 @@ public class Server : MonoBehaviour
         {
             try
             {
-                var usr = clients[sock];
-                var statisticsModule = usr.statisticsModule;
-                snapshot.UpdateStatistics(statisticsModule.tickAck, statisticsModule.GetTimeSpentIdlems());
-
-                var message = ServerPktSerializer.Serialize(snapshot);
-                Console.WriteLine("Fixed Update Send Reply " + message.Length);
-                SendReply(usr, message);
+                SendSnapshot(sock, snapshot);
             }
             catch
             {
                 OnUserDisconnect(sock);
             }
         }
+    }
+
+    private void SendSnapshot(Socket sock, WorldState snapshot)
+    {
+        var usr = clients[sock];
+        var statisticsModule = usr.statisticsModule;
+        snapshot.UpdateStatistics(statisticsModule.tickAck, statisticsModule.GetTimeSpentIdlems());
+
+        var message = ServerPktSerializer.Serialize(snapshot);
+        Console.WriteLine("Fixed Update Send Reply " + message.Length);
+        BeginSend(usr, message);
+    }
+
+    void BeginSend(User user, byte[] msgArray)
+    {
+        byte[] wrapped = Globals.SerializeLenPrefix(msgArray);
+        user.sock.BeginSend(wrapped, 0, wrapped.Length, SocketFlags.None, EndSend, user);
+    }
+
+    void EndSend(IAsyncResult iar)
+    {
+        User user = (iar.AsyncState as User);
+        user.statisticsModule.RecordSentPacket();
+        int BytesSent = user.sock.EndSend(iar);
+        Console.WriteLine("Bytes Sent: " + BytesSent);
     }
 
     private void StartServer()
@@ -212,7 +237,7 @@ public class Server : MonoBehaviour
                     usr = new User(tmp);
 
                     // Send to the connected client his ID.
-                    SendReply(usr, BitConverter.GetBytes(usr.player.playerId));
+                    BeginSend(usr, BitConverter.GetBytes(usr.player.playerId));
 
                     // Instantiate at the main thread, not here.
                     lock (instantiateJobs)
@@ -267,20 +292,6 @@ public class Server : MonoBehaviour
         }
 
         Debug.Log("Stop Listening");
-    }
-
-    void SendReply(User user, byte[] msgArray)
-    {
-        byte[] wrapped = Globals.Serializer(msgArray);
-        user.sock.BeginSend(wrapped, 0, wrapped.Length, SocketFlags.None, EndSend, user);
-    }
-
-    void EndSend(IAsyncResult iar)
-    {
-        User user = (iar.AsyncState as User);
-        user.statisticsModule.RecordSentPacket();
-        int BytesSent = user.sock.EndSend(iar);
-        Console.WriteLine("Bytes Sent: " + BytesSent);
     }
 
     void OnApplicationQuit()

@@ -4,14 +4,11 @@ using UnityEngine;
 
 public class ClientSettings : MonoBehaviour
 {
-    [SerializeField]
-    GameObject graphyOverlay;
+    [SerializeField] GameObject graphyOverlay; 
 
-    [SerializeField] 
-    float ticksPerSecond = 1f;
+    [SerializeField] float ticksPerSecond = 1f;
 
-    [SerializeField]
-    int frameRate = 60;
+    [SerializeField] int frameRate = 60;
 
     void Awake()
     {

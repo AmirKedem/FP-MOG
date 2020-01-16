@@ -32,9 +32,14 @@ public static class PacketStartTime
 
 public class Client : MonoBehaviour
 {
+    [SerializeField] private Material lineMat;
+
     [SerializeField] private Camera cam;
     [SerializeField] private GameObject playerPrefab;
     [SerializeField] private GameObject playerLocal;
+
+    [SerializeField] private GameObject networkStatePanel;
+    [SerializeField] private GameObject networkErrorMessage;
 
     public static WorldManager wm;
     public static WorldState ws;
@@ -47,50 +52,73 @@ public class Client : MonoBehaviour
     public static HashSet<int> DisconnectedPlayersIds = new HashSet<int>();
 
     // The client socket
-    private static Socket sock;
-    // ManualResetEvent instances signal completion.  
-    private static ManualResetEvent connectDone =
-        new ManualResetEvent(false);
-
+    private static Socket clientSock;
     private static bool isConnected = false;
 
-    [SerializeField]
-    private Material lineMat;
-
-    private static void ConnectCallback(IAsyncResult ar)
+    private void ClientConnectCallback(IAsyncResult ar)
     {
         try
         {
             // Retrieve the socket from the state object.  
-            Socket client = (Socket) ar.AsyncState;
+            Socket client = (Socket)ar.AsyncState;
 
             // Complete the connection.  
             client.EndConnect(ar);
-
+            client.NoDelay = true;
             isConnected = true;
-            string str = string.Format("Socket connected to {0}", client.RemoteEndPoint.ToString());
-            Debug.Log(str);
-            // Signal that the connection has been made.  
-            connectDone.Set();
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.Log(e.ToString());
+            UnityThread.executeInFixedUpdate(() =>
+            {
+                networkErrorMessage.SetActive(true);
+            });
+
+            Debug.Log("Something went wrong and the socket couldn't connect");
+            Debug.Log(e.ToString());
+            return;
+        }
+
+        // Setup done, ConnectDone.
+        Debug.Log(string.Format("Socket connected to {0}", clientSock.RemoteEndPoint.ToString()));
+        Debug.Log("Connected, Setup Done");
+
+        UnityThread.executeInFixedUpdate(() =>
+        {
+            networkStatePanel.SetActive(false);
+        });
+        
+        // Start the receive thread
+        StartReceive();
+    }
+
+    private void StartReceive()
+    {
+        try
+        {
+            // Start the receive thread.
+            Thread recThr = new Thread(new ThreadStart(ReceiveLoop));
+            recThr.Start();
+        }
+        catch (Exception e)
+        {
+            Debug.Log("Something went wrong and the socket couldn't receive");
+            Debug.Log(e.ToString());
         }
     }
 
     public void Send(byte[] data)
     { 
         // Adding a Length prefix to the data.
-        byte[] byteData = Globals.Serializer(data);
+        byte[] byteData = Globals.SerializeLenPrefix(data);
 
         try
         {
-            if (sock != null)
+            if (clientSock != null)
             {
                 // Begin sending the data to the remote device.  
-                sock.BeginSend(byteData, 0, byteData.Length, 0,
-                    new AsyncCallback(SendCallback), sock);
+                clientSock.BeginSend(byteData, 0, byteData.Length, 0,
+                    new AsyncCallback(SendCallback), clientSock);
             }
         }
         catch (Exception e)
@@ -140,7 +168,7 @@ public class Client : MonoBehaviour
                     return;
             }
 
-            len = Globals.DeSerializePrefix(buffer, offset);
+            len = Globals.DeSerializeLenPrefix(buffer, offset);
             offset += sizeof(int);
 
             while (len > 0)
@@ -170,7 +198,7 @@ public class Client : MonoBehaviour
     {
         try
         {
-            bytesRec = sock.Receive(buffer);
+            bytesRec = clientSock.Receive(buffer);
 
             // Which means an empty packet
             if (bytesRec <= sizeof(int))
@@ -221,30 +249,25 @@ public class Client : MonoBehaviour
         }
     }
 
-    private void StartClient()
+    private void InitializeNetworking()
     {
-        // Connect to a remote device.  
+        // Establish the remote endpoint for the socket.  
+        IPAddress ipAddress = IPAddress.Parse("192.168.1.29");
+        IPEndPoint remoteEP = new IPEndPoint(ipAddress, Globals.port);
+        // Create a TCP/IP socket.  
+        clientSock = new Socket(ipAddress.AddressFamily,
+            SocketType.Stream, ProtocolType.Tcp);
+
         try
         {
-            // Establish the remote endpoint for the socket.  
-            IPAddress ipAddress = IPAddress.Parse("192.168.1.29");
-            IPEndPoint remoteEP = new IPEndPoint(ipAddress, Globals.port);
-            // Create a TCP/IP socket.  
-            sock = new Socket(ipAddress.AddressFamily,
-                SocketType.Stream, ProtocolType.Tcp);
             // Connect to the remote endpoint.  
-            sock.BeginConnect(remoteEP,
-                new AsyncCallback(ConnectCallback), sock);
-            connectDone.WaitOne();
-            // Setup done, ConnectDone.
-            UnityEngine.Debug.Log("Connected, Setup Done");
-            // Start the receive thread.
-            Thread recThr = new Thread(new ThreadStart(ReceiveLoop));
-            recThr.Start();
+            clientSock.BeginConnect(remoteEP,
+                new AsyncCallback(ClientConnectCallback), clientSock);
         }
         catch (Exception e)
         {
-            Debug.Log(e.ToString());
+            Debug.Log("Something went wrong and the socket couldn't connect");
+            Debug.Log(e);
         }
     }
 
@@ -254,7 +277,9 @@ public class Client : MonoBehaviour
         wm = new WorldManager();
         statisticsModule = new Statistics();
 
-        Thread thr = new Thread(new ThreadStart(StartClient));
+        UnityThread.initUnityThread();
+
+        Thread thr = new Thread(new ThreadStart(InitializeNetworking));
         thr.Start();
     }
 
@@ -359,9 +384,7 @@ public class Client : MonoBehaviour
     {
         if (Input.GetKey(KeyCode.Escape))
         {
-            sock.Shutdown(SocketShutdown.Both);
-            sock.Close();
-
+            Disconnect();
             Application.Quit();
         }
         
@@ -398,7 +421,7 @@ public class Client : MonoBehaviour
         if (isConnected)
         {
             isConnected = false;
-            sock.Close();
+            clientSock.Close();
 
             Debug.Log("Disconnected from the Server");
         }

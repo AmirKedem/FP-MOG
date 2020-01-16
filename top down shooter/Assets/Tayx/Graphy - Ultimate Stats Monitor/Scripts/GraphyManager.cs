@@ -41,8 +41,7 @@ namespace Tayx.Graphy
         {
             FPS             = 0,
             RAM             = 1,
-            AUDIO           = 2,
-            ADVANCED        = 3
+            ADVANCED        = 2
         }
 
         public enum ModuleState
@@ -63,13 +62,6 @@ namespace Tayx.Graphy
             FREE            = 4
         }
 
-        public enum LookForAudioListener
-        {
-            ALWAYS,
-            ON_SCENE_LOAD,
-            NEVER
-        }
-
         public enum ModulePreset
         {
             FPS_BASIC = 0,
@@ -80,8 +72,7 @@ namespace Tayx.Graphy
             FPS_FULL_RAM_TEXT = 4,
             FPS_FULL_RAM_FULL = 5,
 
-            FPS_FULL_RAM_FULL_ADVANCED_FULL = 6,
-            FPS_BASIC_ADVANCED_FULL = 7
+            FPS_FULL_RAM_FULL_ADVANCED_FULL = 6
         }
 
         #endregion
@@ -146,27 +137,6 @@ namespace Tayx.Graphy
         [Range(1, 200)]
         [SerializeField] private    int                     m_ramTextUpdateRate                 = 3;  // 3 updates per sec.
 
-        // Audio -------------------------------------------------------------------------
-
-        [SerializeField] private    ModuleState             m_audioModuleState                  = ModuleState.FULL;
-
-        [SerializeField] private    LookForAudioListener    m_findAudioListenerInCameraIfNull   = LookForAudioListener.ON_SCENE_LOAD;
-
-        [SerializeField] private    AudioListener           m_audioListener                     = null;
-        
-        [SerializeField] private    Color                   m_audioGraphColor                   = Color.white;
-
-        [Range(10, 300)]
-        [SerializeField] private    int                     m_audioGraphResolution              = 81;
-        
-        [Range(1, 200)]
-        [SerializeField] private    int                     m_audioTextUpdateRate               = 3;  // 3 updates per sec.
-        
-        [SerializeField] private    FFTWindow               m_FFTWindow                         = FFTWindow.Blackman;
-
-        [Tooltip("Must be a power of 2 and between 64-8192")]
-        [SerializeField] private    int                     m_spectrumSize                      = 512;
-
         // Advanced ----------------------------------------------------------------------
 
         [SerializeField] private    ModulePosition          m_advancedModulePosition            = ModulePosition.BOTTOM_LEFT;
@@ -188,7 +158,7 @@ namespace Tayx.Graphy
         private                     G_FpsMonitor            m_fpsMonitor                        = null;
         private                     G_RamMonitor            m_ramMonitor                        = null;
 
-        private                     ModulePreset            m_modulePresetState                 = ModulePreset.FPS_BASIC_ADVANCED_FULL;
+        private                     ModulePreset            m_modulePresetState                 = ModulePreset.FPS_FULL;
 
         #endregion
 
@@ -328,12 +298,10 @@ namespace Tayx.Graphy
             {
                 case ModuleType.FPS:
                 case ModuleType.RAM:
-                //case ModuleType.NETWORK:
                     m_graphModulePosition = modulePosition;
 
                     m_ramManager.SetPosition(modulePosition);
                     m_fpsManager.SetPosition(modulePosition);
-                    //m_audioManager.SetPosition(modulePosition);
                     break;
 
                 case ModuleType.ADVANCED:
@@ -362,22 +330,15 @@ namespace Tayx.Graphy
 
         public void ToggleModes()
         {
-            if ((int)m_modulePresetState >= Enum.GetNames(typeof(ModulePreset)).Length - 1)
-            {
-                m_modulePresetState = 0;
-            }
-            else
-            {
-                m_modulePresetState++;
-            }
-
+            int len = Enum.GetNames(typeof(ModulePreset)).Length;
+            m_modulePresetState = (ModulePreset) (((int)m_modulePresetState + 1) % len);
             SetPreset(m_modulePresetState);
         }
 
         public void SetPreset(ModulePreset modulePreset)
         {
             m_modulePresetState = modulePreset;
-            
+
             switch (m_modulePresetState)
             {
                 case ModulePreset.FPS_BASIC:
@@ -422,15 +383,8 @@ namespace Tayx.Graphy
                     m_advancedData.SetState(ModuleState.FULL);
                     break;
 
-                case ModulePreset.FPS_BASIC_ADVANCED_FULL:
-                    m_fpsManager.SetState(ModuleState.BASIC);
-                    m_ramManager.SetState(ModuleState.OFF);
-                    m_advancedData.SetState(ModuleState.FULL);
-                    break;
-
                 default:
-                    //throw new ArgumentOutOfRangeException();
-                    break;
+                    throw new ArgumentOutOfRangeException();
             }
         }
 
@@ -497,6 +451,10 @@ namespace Tayx.Graphy
                 // We need to enable this on startup because we disable it in GraphyManagerEditor
                 GetComponent<Canvas>().enabled = true;
             }
+
+            // Set the Preset as the chosen Preset.
+            // If the ModulePreset has changed we call set preset here to init with the correct selected state.
+            SetPreset(m_modulePresetState);
 
             m_initialized = true;
         }

@@ -1,17 +1,14 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Diagnostics;
 using UnityEngine;
 
 
 public static class StopWacthTime
 {
-    static Stopwatch stopWatch;
-
+    static System.Diagnostics.Stopwatch stopWatch;
     static StopWacthTime()
     {
-        stopWatch = new Stopwatch();
+        stopWatch = new System.Diagnostics.Stopwatch();
         stopWatch.Start();
     }
 
@@ -24,32 +21,24 @@ public class ServerLoop
     float tickDuration = Time.fixedDeltaTime;
 
     // Body + head distance from the middle of the body
+
+    const float speedFactor = 1f;
+
     const float bodyRadius = 0.5f/2f + 0.3f/2f + 0.01f;
     const int NoMoreEvents = -1;
 
     WorldManager wm;
     List<RayState> rayStates = new List<RayState>();
 
-    float lastTickStartTime = 0;
-    float speedFactor = 0.5f;
-
     public GameObject playerPrefab;
-
-    public GameObject AddPlayer(int Id)
-    {
-        GameObject obj = GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
-        obj.name = Id.ToString();
-        return obj;
-    }
 
     public ServerLoop(GameObject playerPrefab)
     {
         this.playerPrefab = playerPrefab;
         wm = new WorldManager();
-        UnityEngine.Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
+        Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
     }
 
-    // List of rays too.
     public void TakeSnapshot(List<Player> players, List<RayState> rayStates)
     {
         wm.TakeSnapshot(NetworkTick.tickSeq, players, rayStates);
@@ -129,11 +118,10 @@ public class ServerLoop
 
             // UnityEngine.Debug.Log("Minor Jump " + minorJump);
         }
-        
+
         DeleteUsedEvents(players, playerEventIndexes);
 
-        // take and store a snapshot of the world state TODO future
-        lastTickStartTime = startTickTime;
+        // TODO take and STORE a snapshot of the world state
 
         TakeSnapshot(players, rayStates);
     }
@@ -207,8 +195,6 @@ public class ServerLoop
 
         float zAngle = Mathf.Repeat(ie.zAngle, 360);
         player.obj.transform.rotation = Quaternion.Euler(0, 0, zAngle);
-
-        ApplyVelocity(player);
 
         if (ie.mouseDown == true)
         {

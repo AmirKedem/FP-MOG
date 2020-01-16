@@ -35,7 +35,7 @@ namespace Tayx.Graphy.CustomizationScene
         
         [Header("Customize Graphy")]
 
-        [SerializeField] private    G_CUIColorPicker      m_colorPicker = null;
+        [SerializeField] private    G_CUIColorPicker    m_colorPicker = null;
         
         [SerializeField] private    Toggle              m_backgroundToggle = null;
 
@@ -79,23 +79,6 @@ namespace Tayx.Graphy.CustomizationScene
 
         #endregion
 
-        #region Section -> Audio
-
-        [Header("Audio")]
-        
-        [SerializeField] private    Dropdown            m_audioModuleStateDropdown = null;
-        
-        [SerializeField] private    Button              m_audioGraphColorButton = null;
-        
-        [SerializeField] private    Dropdown            m_findAudioListenerDropdown = null;
-        [SerializeField] private    Dropdown            m_fttWindowDropdown = null;
-        
-        [SerializeField] private    Slider              m_spectrumSizeSlider = null;
-        [SerializeField] private    Slider              m_audioGraphResolutionSlider = null;
-        [SerializeField] private    Slider              m_audioTextUpdateRateSlider = null;
-
-        #endregion
-
         #region Section -> Advanced
 
         [Header("Advanced")]
@@ -103,24 +86,6 @@ namespace Tayx.Graphy.CustomizationScene
         [SerializeField] private    Dropdown            m_advancedModulePositionDropdown = null;
 
         [SerializeField] private    Toggle              m_advancedModuleToggle = null;
-
-        #endregion
-
-        #region Section -> Other
-
-        [Header("Other")]
-        
-        [SerializeField] private    Button              m_musicButton = null;
-        [SerializeField] private    Button              m_sfxButton = null;
-        
-        [SerializeField] private    Slider              m_musicVolumeSlider = null;
-        [SerializeField] private    Slider              m_sfxVolumeSlider = null;
-
-
-        [SerializeField] private    AudioSource         m_musicAudioSource = null;
-        [SerializeField] private    AudioSource         m_sfxAudioSource = null;
-        
-        [SerializeField] private    List<AudioClip>     m_sfxAudioClips = new List<AudioClip>();
 
         #endregion
 
@@ -176,7 +141,6 @@ namespace Tayx.Graphy.CustomizationScene
 
             #endregion
 
-
             #region Section -> RAM
 
             m_ramModuleStateDropdown.onValueChanged.RemoveAllListeners();
@@ -193,24 +157,6 @@ namespace Tayx.Graphy.CustomizationScene
 
             #endregion
 
-            #region Section -> Audio
-
-            m_audioModuleStateDropdown.onValueChanged.RemoveAllListeners();
-
-            m_audioGraphColorButton.onClick.RemoveAllListeners();
-
-            m_findAudioListenerDropdown.onValueChanged.RemoveAllListeners();
-
-            m_fttWindowDropdown.onValueChanged.RemoveAllListeners();
-
-            m_spectrumSizeSlider.onValueChanged.RemoveAllListeners();
-
-            m_audioGraphResolutionSlider.onValueChanged.RemoveAllListeners();
-
-            m_audioTextUpdateRateSlider.onValueChanged.RemoveAllListeners();
-
-            #endregion
-
             #region Section -> Advanced
 
             m_advancedModulePositionDropdown.onValueChanged.RemoveAllListeners();
@@ -218,19 +164,6 @@ namespace Tayx.Graphy.CustomizationScene
             m_advancedModuleToggle.onValueChanged.RemoveAllListeners();
 
             #endregion
-
-            #region Section -> Other
-
-            m_musicButton.onClick.RemoveAllListeners();
-
-            m_sfxButton.onClick.RemoveAllListeners();
-
-            m_musicVolumeSlider.onValueChanged.RemoveAllListeners();
-
-            m_sfxVolumeSlider.onValueChanged.RemoveAllListeners();
-
-            #endregion
-
 
             // Add listeners --------------------------------
 
@@ -255,13 +188,11 @@ namespace Tayx.Graphy.CustomizationScene
                     case GraphyManager.Mode.FULL:
                         m_fpsGraphResolutionSlider.maxValue     = 300f;
                         m_ramGraphResolutionSlider.maxValue     = 300f;
-                        m_audioGraphResolutionSlider.maxValue   = 300f;
                         break;
 
                     case GraphyManager.Mode.LIGHT:
                         m_fpsGraphResolutionSlider.maxValue     = 128f;
                         m_ramGraphResolutionSlider.maxValue     = 128f;
-                        m_audioGraphResolutionSlider.maxValue   = 128f;
                         break;
                 }
 
@@ -394,40 +325,6 @@ namespace Tayx.Graphy.CustomizationScene
 
             #endregion
 
-            #region Section -> Other
-
-            m_musicButton.onClick.AddListener(ToggleMusic);
-            m_sfxButton.onClick.AddListener(PlayRandomSFX);
-            
-            m_musicVolumeSlider.onValueChanged.AddListener(
-                value => m_musicAudioSource.volume = value / 100f);
-
-            m_sfxVolumeSlider.onValueChanged.AddListener(
-                value =>  m_sfxAudioSource.volume = value / 100f);
-
-            #endregion
-        }
-
-        private void ToggleMusic()
-        {
-            if (m_musicAudioSource.isPlaying)
-            {
-                m_musicAudioSource.Pause();
-            }
-            else
-            {
-                m_musicAudioSource.Play();
-            }
-        }
-
-        private void PlayRandomSFX()
-        {
-            if (m_sfxAudioClips.Count > 0)
-            {
-                m_sfxAudioSource.clip = m_sfxAudioClips[UnityEngine.Random.Range(0, m_sfxAudioClips.Count)];
-
-                m_sfxAudioSource.Play();
-            }
         }
 
         #endregion

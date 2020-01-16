@@ -110,28 +110,6 @@ namespace Tayx.Graphy
 
         #endregion
 
-        #region Section -> Audio
-
-        private bool                m_audioModuleInspectorToggle        = true;
-            
-        private SerializedProperty  m_findAudioListenerInCameraIfNull;
-
-        private SerializedProperty  m_audioListener;
-        
-        private SerializedProperty  m_audioModuleState;
-
-        private SerializedProperty  m_audioGraphColor;
-
-        private SerializedProperty  m_audioGraphResolution;
-
-        private SerializedProperty  m_audioTextUpdateRate;
-        
-        private SerializedProperty  m_FFTWindow;
-
-        private SerializedProperty  m_spectrumSize;
-
-        #endregion
-
         #region Section -> Advanced Settings
 
         private bool                m_advancedModuleInspectorToggle     = true;
@@ -210,26 +188,6 @@ namespace Tayx.Graphy
             m_ramGraphResolution                = serObj.FindProperty("m_ramGraphResolution");
 
             m_ramTextUpdateRate                 = serObj.FindProperty("m_ramTextUpdateRate");
-
-            #endregion
-
-            #region Section -> Audio
-
-            m_findAudioListenerInCameraIfNull   = serObj.FindProperty("m_findAudioListenerInCameraIfNull");
-
-            m_audioListener                     = serObj.FindProperty("m_audioListener");
-            
-            m_audioModuleState                  = serObj.FindProperty("m_audioModuleState");
-
-            m_audioGraphColor                   = serObj.FindProperty("m_audioGraphColor");
-
-            m_audioGraphResolution              = serObj.FindProperty("m_audioGraphResolution");
-
-            m_audioTextUpdateRate               = serObj.FindProperty("m_audioTextUpdateRate");
-
-            m_FFTWindow                         = serObj.FindProperty("m_FFTWindow");
-
-            m_spectrumSize                      = serObj.FindProperty("m_spectrumSize");
 
             #endregion
 
@@ -698,137 +656,6 @@ namespace Tayx.Graphy
                         tooltip:    "Defines the amount times the text is updated in 1 second."
                     ),
                     m_ramTextUpdateRate.intValue,
-                    leftValue:      1,
-                    rightValue:     60
-                );
-            }
-
-            #endregion
-
-            GUILayout.Space(20);
-
-            #region Section -> Audio
-
-            m_audioModuleInspectorToggle = EditorGUILayout.Foldout
-            (
-                m_audioModuleInspectorToggle,
-                content:    " [ AUDIO ]",
-                style:      foldoutStyle
-            );
-
-            GUILayout.Space(5);
-
-            if (m_audioModuleInspectorToggle)
-            {
-                EditorGUILayout.PropertyField
-                (
-                    m_audioModuleState,
-                    new GUIContent
-                    (
-                        text:       "Module state",
-                        tooltip:    "FULL -> Text + Graph \nTEXT -> Just text \nOFF -> Turned off"
-                    )
-                );
-
-                GUILayout.Space(5);
-
-                EditorGUILayout.PropertyField
-                (
-                    m_findAudioListenerInCameraIfNull,
-                    new GUIContent
-                    (
-                        text:       "Find audio listener",
-                        tooltip:    "Tries to find the AudioListener in the Main camera in the scene. (if AudioListener is null)"
-                    )
-                );
-
-                EditorGUILayout.PropertyField
-                (
-                    m_audioListener,
-                    new GUIContent
-                    (
-                        text:       "Audio Listener",
-                        tooltip:    "Graphy will take the data from this Listener. If none are specified, it will try to get it from the Main Camera in the scene."
-                    )
-                );
-
-                if (m_audioModuleState.intValue == 0)
-                {
-                    m_audioGraphColor.colorValue = EditorGUILayout.ColorField
-                    (
-                        label: "Graph color",
-                        value: m_audioGraphColor.colorValue
-                    );
-
-                    m_audioGraphResolution.intValue = EditorGUILayout.IntSlider
-                    (
-                        new GUIContent
-                        (
-                            text:       "Graph resolution",
-                            tooltip:    "Defines the amount of points that are in the graph."
-                        ),
-                        m_audioGraphResolution.intValue,
-                        leftValue:      20,
-                        rightValue:     m_graphyMode.intValue == 0 ? 300 : 128
-                    );
-
-                    // Forces the value to be a multiple of 3, this way the audio graph is painted correctly
-                    if (m_audioGraphResolution.intValue % 3 != 0 && m_audioGraphResolution.intValue < 300)
-                    {
-                        m_audioGraphResolution.intValue += 3 - m_audioGraphResolution.intValue % 3;
-                    }
-                    //TODO: Figure out why a static version of the ForceMultipleOf3 isnt used.
-                }
-
-                EditorGUILayout.PropertyField
-                (
-                    m_FFTWindow,
-                    new GUIContent
-                    (
-                        text:       "FFT Window",
-                        tooltip:    "Used to reduce leakage between frequency bins/bands. Note, the more complex window type, the better the quality, but reduced speed. \n\nSimplest is rectangular. Most complex is BlackmanHarris"
-                    )
-                );
-
-                m_spectrumSize.intValue = EditorGUILayout.IntSlider
-                (
-                    new GUIContent
-                    (
-                        text:       "Spectrum size",
-                        tooltip:    "Has to be a power of 2 between 128-8192. The higher sample rate, the less precision but also more impact on performance. Careful with mobile devices"
-                    ),
-                    m_spectrumSize.intValue,
-                    leftValue:      128,
-                    rightValue:     8192
-                );
-
-                int closestSpectrumIndex = 0;
-                int minDistanceToSpectrumValue = 100000;
-
-                for (int i = 0; i < m_spectrumSizeValues.Length; i++)
-                {
-                    int newDistance = Mathf.Abs
-                    (
-                        value: m_spectrumSize.intValue - m_spectrumSizeValues[i]
-                    );
-
-                    if (newDistance < minDistanceToSpectrumValue)
-                    {
-                        minDistanceToSpectrumValue = newDistance;
-                        closestSpectrumIndex = i;
-                    }
-                }
-
-                m_spectrumSize.intValue = m_spectrumSizeValues[closestSpectrumIndex];
-
-                m_audioTextUpdateRate.intValue = EditorGUILayout.IntSlider
-                (
-                    new GUIContent
-                    (
-                        text:       "Text update rate",
-                        tooltip:    "Defines the amount times the text is updated in 1 second"
-                    ),
-                    m_audioTextUpdateRate.intValue,
                     leftValue:      1,
                     rightValue:     60
                 );
