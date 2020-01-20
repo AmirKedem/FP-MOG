@@ -12,7 +12,7 @@
 using System;
 using UnityEngine;
 using Tayx.Graphy.Fps;
-using Tayx.Graphy.Ram;
+using Tayx.Graphy.Rtt;
 using Tayx.Graphy.Utils;
 using Tayx.Graphy.Advanced;
 
@@ -40,7 +40,7 @@ namespace Tayx.Graphy
         public enum ModuleType
         {
             FPS             = 0,
-            RAM             = 1,
+            RTT             = 1,
             ADVANCED        = 2
         }
 
@@ -68,11 +68,11 @@ namespace Tayx.Graphy
             FPS_TEXT  = 1,
             FPS_FULL  = 2,
 
-            FPS_TEXT_RAM_TEXT = 3,
-            FPS_FULL_RAM_TEXT = 4,
-            FPS_FULL_RAM_FULL = 5,
+            FPS_TEXT_RTT_TEXT = 3,
+            FPS_FULL_RTT_TEXT = 4,
+            FPS_FULL_RTT_FULL = 5,
 
-            FPS_FULL_RAM_FULL_ADVANCED_FULL = 6
+            FPS_FULL_RTT_FULL_ADVANCED_FULL = 6
         }
 
         #endregion
@@ -109,10 +109,10 @@ namespace Tayx.Graphy
         [SerializeField] private    int                     m_timeToResetMinMaxFps              = 10;
 
         [SerializeField] private    Color                   m_goodFpsColor                      = new Color32(118, 212, 58, 255);
-        [SerializeField] private    int                     m_goodFpsThreshold                  = 60;
+        [SerializeField] private    int                     m_goodFpsThreshold                  = 50;
 
         [SerializeField] private    Color                   m_cautionFpsColor                   = new Color32(243, 232, 0, 255);
-        [SerializeField] private    int                     m_cautionFpsThreshold               = 30;
+        [SerializeField] private    int                     m_cautionFpsThreshold               = 40;
 
         [SerializeField] private    Color                   m_criticalFpsColor                  = new Color32(220, 41, 30, 255);
 
@@ -122,20 +122,27 @@ namespace Tayx.Graphy
         [Range(1, 200)]
         [SerializeField] private    int                     m_fpsTextUpdateRate                 = 3;  // 3 updates per sec.
 
-        // Ram ---------------------------------------------------------------------------
+        // Rtt ---------------------------------------------------------------------------
 
-        [SerializeField] private    ModuleState             m_ramModuleState                    = ModuleState.FULL;
+        [SerializeField] private ModuleState m_rttModuleState = ModuleState.FULL;
 
-        [SerializeField] private    Color                   m_allocatedRamColor                 = new Color32(255, 190, 60, 255);
-        [SerializeField] private    Color                   m_reservedRamColor                  = new Color32(205, 84, 229, 255);
-        [SerializeField] private    Color                   m_monoRamColor                      = new Color(0.3f, 0.65f, 1f, 1);
+        [Range(0, 200)]
+        [Tooltip("Time (in seconds) to reset the minimum and maximum rtts if they don't change in the specified time. Set to 0 if you don't want it to reset.")]
+        [SerializeField] private int m_timeToResetMinMaxRtt = 10;
+
+        [SerializeField] private Color m_goodRttColor = new Color32(118, 212, 58, 255);
+        [SerializeField] private int m_goodRttThreshold = 50;
+
+        [SerializeField] private Color m_cautionRttColor = new Color32(243, 232, 0, 255);
+        [SerializeField] private int m_cautionRttThreshold = 40;
+
+        [SerializeField] private Color m_criticalRttColor = new Color32(220, 41, 30, 255);
 
         [Range(10, 300)]
-        [SerializeField] private    int                     m_ramGraphResolution                = 150;
-
+        [SerializeField] private int m_rttGraphResolution = 150;
 
         [Range(1, 200)]
-        [SerializeField] private    int                     m_ramTextUpdateRate                 = 3;  // 3 updates per sec.
+        [SerializeField] private int m_rttTextUpdateRate = 3;  // 3 updates per sec.
 
         // Advanced ----------------------------------------------------------------------
 
@@ -152,11 +159,11 @@ namespace Tayx.Graphy
         private                     bool                    m_focused                           = true;
 
         private                     G_FpsManager            m_fpsManager                        = null;
-        private                     G_RamManager            m_ramManager                        = null;
+        private                     G_RttManager            m_rttManager                        = null;
         private                     G_AdvancedData          m_advancedData                      = null;
 
         private                     G_FpsMonitor            m_fpsMonitor                        = null;
-        private                     G_RamMonitor            m_ramMonitor                        = null;
+        private                     G_RttMonitor            m_rttMonitor                        = null;
 
         private                     ModulePreset            m_modulePresetState                 = ModulePreset.FPS_FULL;
 
@@ -185,7 +192,7 @@ namespace Tayx.Graphy
             {
                 m_graphModulePosition = value;
                 m_fpsManager    .SetPosition(m_graphModulePosition);
-                m_ramManager    .SetPosition(m_graphModulePosition);
+                m_rttManager    .SetPosition(m_graphModulePosition);
             }
         }
 
@@ -193,63 +200,125 @@ namespace Tayx.Graphy
 
         // Setters & Getters
 
-        public ModuleState FpsModuleState               { get { return m_fpsModuleState; }             
-                                                          set { m_fpsModuleState = value; m_fpsManager.SetState(m_fpsModuleState); } }
+        public ModuleState FpsModuleState
+        {
+            get { return m_fpsModuleState; }
+            set { m_fpsModuleState = value; m_fpsManager.SetState(m_fpsModuleState); }
+        }
 
-        public int TimeToResetMinMaxFps                 { get { return m_timeToResetMinMaxFps; }       
-                                                          set { m_timeToResetMinMaxFps = value; m_fpsManager.UpdateParameters(); } }
+        public int TimeToResetMinMaxFps
+        {
+            get { return m_timeToResetMinMaxFps; }
+            set { m_timeToResetMinMaxFps = value; m_fpsManager.UpdateParameters(); }
+        }
 
-        public Color GoodFPSColor                       { get { return m_goodFpsColor; } 
-                                                          set { m_goodFpsColor = value; m_fpsManager.UpdateParameters(); } }
-        public Color CautionFPSColor                    { get { return m_cautionFpsColor; } 
-                                                          set { m_cautionFpsColor = value; m_fpsManager.UpdateParameters(); } }
-        public Color CriticalFPSColor                   { get { return m_criticalFpsColor; } 
-                                                          set { m_criticalFpsColor = value; m_fpsManager.UpdateParameters(); } }
+        public Color GoodFPSColor
+        {
+            get { return m_goodFpsColor; }
+            set { m_goodFpsColor = value; m_fpsManager.UpdateParameters(); }
+        }
+        public Color CautionFPSColor
+        {
+            get { return m_cautionFpsColor; }
+            set { m_cautionFpsColor = value; m_fpsManager.UpdateParameters(); }
+        }
+        public Color CriticalFPSColor
+        {
+            get { return m_criticalFpsColor; }
+            set { m_criticalFpsColor = value; m_fpsManager.UpdateParameters(); }
+        }
 
-        public int GoodFPSThreshold                     { get { return m_goodFpsThreshold; } 
-                                                          set { m_goodFpsThreshold = value; m_fpsManager.UpdateParameters(); } }
-        public int CautionFPSThreshold                  { get { return m_cautionFpsThreshold; } 
-                                                          set { m_cautionFpsThreshold = value; m_fpsManager.UpdateParameters(); } }
+        public int GoodFpsThreshold
+        {
+            get { return m_goodFpsThreshold; }
+            set { m_goodFpsThreshold = value; m_fpsManager.UpdateParameters(); }
+        }
+        public int CautionFpsThreshold
+        {
+            get { return m_cautionFpsThreshold; }
+            set { m_cautionFpsThreshold = value; m_fpsManager.UpdateParameters(); }
+        }
 
-        public int FpsGraphResolution                   { get { return m_fpsGraphResolution; } 
-                                                          set { m_fpsGraphResolution = value; m_fpsManager.UpdateParameters(); } }
+        public int FpsGraphResolution
+        {
+            get { return m_fpsGraphResolution; }
+            set { m_fpsGraphResolution = value; m_fpsManager.UpdateParameters(); }
+        }
 
-        public int FpsTextUpdateRate                    { get { return m_fpsTextUpdateRate; } 
-                                                          set { m_fpsTextUpdateRate = value; m_fpsManager.UpdateParameters(); } }
+        public int FpsTextUpdateRate
+        {
+            get { return m_fpsTextUpdateRate; }
+            set { m_fpsTextUpdateRate = value; m_fpsManager.UpdateParameters(); }
+        }
 
         // Getters
 
-        public float CurrentFPS                         { get { return m_fpsMonitor.CurrentFPS; } }
-        public float AverageFPS                         { get { return m_fpsMonitor.AverageFPS; } }
-        public float MinFPS                             { get { return m_fpsMonitor.MinFPS; } }
-        public float MaxFPS                             { get { return m_fpsMonitor.MaxFPS; } }
+        public float CurrentFPS { get { return m_fpsMonitor.CurrentFPS; } }
+        public float AverageFPS { get { return m_fpsMonitor.AverageFPS; } }
+        public float MinFPS { get { return m_fpsMonitor.MinFPS; } }
+        public float MaxFPS { get { return m_fpsMonitor.MaxFPS; } }
 
-        // Ram ---------------------------------------------------------------------------
+        // Rtt ---------------------------------------------------------------------------
 
         // Setters & Getters
 
-        public ModuleState RamModuleState               { get { return m_ramModuleState; } 
-                                                          set { m_ramModuleState = value; m_ramManager.SetState(m_ramModuleState); } }
+        public ModuleState RttModuleState
+        {
+            get { return m_rttModuleState; }
+            set { m_rttModuleState = value; m_rttManager.SetState(m_rttModuleState); }
+        }
 
+        public int TimeToResetMinMaxRtt
+        {
+            get { return m_timeToResetMinMaxRtt; }
+            set { m_timeToResetMinMaxRtt = value; m_rttManager.UpdateParameters(); }
+        }
 
-        public Color AllocatedRamColor                  { get { return m_allocatedRamColor; } 
-                                                          set { m_allocatedRamColor = value; m_ramManager.UpdateParameters(); } }
-        public Color ReservedRamColor                   { get { return m_reservedRamColor; } 
-                                                          set { m_reservedRamColor = value; m_ramManager.UpdateParameters(); } }
-        public Color MonoRamColor                       { get { return m_monoRamColor; } 
-                                                          set { m_monoRamColor = value; m_ramManager.UpdateParameters(); } }
+        public Color GoodRTTColor
+        {
+            get { return m_goodRttColor; }
+            set { m_goodRttColor = value; m_rttManager.UpdateParameters(); }
+        }
+        public Color CautionRTTColor
+        {
+            get { return m_cautionRttColor; }
+            set { m_cautionRttColor = value; m_rttManager.UpdateParameters(); }
+        }
+        public Color CriticalRTTColor
+        {
+            get { return m_criticalRttColor; }
+            set { m_criticalRttColor = value; m_rttManager.UpdateParameters(); }
+        }
 
-        public int RamGraphResolution                   { get { return m_ramGraphResolution; } 
-                                                          set { m_ramGraphResolution = value; m_ramManager.UpdateParameters(); } }
+        public int GoodRttThreshold
+        {
+            get { return m_goodRttThreshold; }
+            set { m_goodRttThreshold = value; m_rttManager.UpdateParameters(); }
+        }
+        public int CautionRttThreshold
+        {
+            get { return m_cautionRttThreshold; }
+            set { m_cautionRttThreshold = value; m_rttManager.UpdateParameters(); }
+        }
 
-        public int RamTextUpdateRate                    { get { return m_ramTextUpdateRate; } 
-                                                          set { m_ramTextUpdateRate = value; m_ramManager.UpdateParameters(); } }
+        public int RttGraphResolution
+        {
+            get { return m_rttGraphResolution; }
+            set { m_rttGraphResolution = value; m_rttManager.UpdateParameters(); }
+        }
+
+        public int RttTextUpdateRate
+        {
+            get { return m_rttTextUpdateRate; }
+            set { m_rttTextUpdateRate = value; m_rttManager.UpdateParameters(); }
+        }
 
         // Getters
 
-        public float AllocatedRam                       { get { return m_ramMonitor.AllocatedRam; } }
-        public float ReservedRam                        { get { return m_ramMonitor.ReservedRam; } }
-        public float MonoRam                            { get { return m_ramMonitor.MonoRam; } }
+        public float CurrentRtt { get { return m_rttMonitor.CurrentRTT; } }
+        public float AverageRtt { get { return m_rttMonitor.AverageRTT; } }
+        public float MinRtt { get { return m_rttMonitor.MinRTT; } }
+        public float MaxRtt { get { return m_rttMonitor.MaxRTT; } }
 
         // Advanced ---------------------------------------------------------------------
 
@@ -297,10 +366,10 @@ namespace Tayx.Graphy
             switch (moduleType)
             {
                 case ModuleType.FPS:
-                case ModuleType.RAM:
+                case ModuleType.RTT:
                     m_graphModulePosition = modulePosition;
 
-                    m_ramManager.SetPosition(modulePosition);
+                    m_rttManager.SetPosition(modulePosition);
                     m_fpsManager.SetPosition(modulePosition);
                     break;
 
@@ -318,8 +387,8 @@ namespace Tayx.Graphy
                     m_fpsManager.SetState(moduleState);
                     break;
 
-                case ModuleType.RAM:
-                    m_ramManager.SetState(moduleState);
+                case ModuleType.RTT:
+                    m_rttManager.SetState(moduleState);
                     break;
 
                 case ModuleType.ADVANCED:
@@ -343,43 +412,43 @@ namespace Tayx.Graphy
             {
                 case ModulePreset.FPS_BASIC:
                     m_fpsManager.SetState(ModuleState.BASIC);
-                    m_ramManager.SetState(ModuleState.OFF);
+                    m_rttManager.SetState(ModuleState.OFF);
                     m_advancedData.SetState(ModuleState.OFF);
                     break;
 
                 case ModulePreset.FPS_TEXT:
                     m_fpsManager.SetState(ModuleState.TEXT);
-                    m_ramManager.SetState(ModuleState.OFF);
+                    m_rttManager.SetState(ModuleState.OFF);
                     m_advancedData.SetState(ModuleState.OFF);
                     break;
 
                 case ModulePreset.FPS_FULL:
                     m_fpsManager.SetState(ModuleState.FULL);
-                    m_ramManager.SetState(ModuleState.OFF);
+                    m_rttManager.SetState(ModuleState.OFF);
                     m_advancedData.SetState(ModuleState.OFF);
                     break;
 
-                case ModulePreset.FPS_TEXT_RAM_TEXT:
+                case ModulePreset.FPS_TEXT_RTT_TEXT:
                     m_fpsManager.SetState(ModuleState.TEXT);
-                    m_ramManager.SetState(ModuleState.TEXT);
+                    m_rttManager.SetState(ModuleState.TEXT);
                     m_advancedData.SetState(ModuleState.OFF);
                     break;
 
-                case ModulePreset.FPS_FULL_RAM_TEXT:
+                case ModulePreset.FPS_FULL_RTT_TEXT:
                     m_fpsManager.SetState(ModuleState.FULL);
-                    m_ramManager.SetState(ModuleState.TEXT);
+                    m_rttManager.SetState(ModuleState.TEXT);
                     m_advancedData.SetState(ModuleState.OFF);
                     break;
 
-                case ModulePreset.FPS_FULL_RAM_FULL:
+                case ModulePreset.FPS_FULL_RTT_FULL:
                     m_fpsManager.SetState(ModuleState.FULL);
-                    m_ramManager.SetState(ModuleState.FULL);
+                    m_rttManager.SetState(ModuleState.FULL);
                     m_advancedData.SetState(ModuleState.OFF);
                     break;
 
-                case ModulePreset.FPS_FULL_RAM_FULL_ADVANCED_FULL:
+                case ModulePreset.FPS_FULL_RTT_FULL_ADVANCED_FULL:
                     m_fpsManager.SetState(ModuleState.FULL);
-                    m_ramManager.SetState(ModuleState.FULL);
+                    m_rttManager.SetState(ModuleState.FULL);
                     m_advancedData.SetState(ModuleState.FULL);
                     break;
 
@@ -403,7 +472,7 @@ namespace Tayx.Graphy
         public void Enable()
         {
             m_fpsManager    .RestorePreviousState();
-            m_ramManager    .RestorePreviousState();
+            m_rttManager    .RestorePreviousState();
             m_advancedData  .RestorePreviousState();
 
             m_active = true;
@@ -412,7 +481,7 @@ namespace Tayx.Graphy
         public void Disable()
         {
             m_fpsManager    .SetState(ModuleState.OFF);
-            m_ramManager    .SetState(ModuleState.OFF);
+            m_rttManager    .SetState(ModuleState.OFF);
             m_advancedData  .SetState(ModuleState.OFF);
 
             m_active = false;
@@ -430,18 +499,18 @@ namespace Tayx.Graphy
             }
             
             m_fpsMonitor    = GetComponentInChildren(typeof(G_FpsMonitor),    true) as G_FpsMonitor;
-            m_ramMonitor    = GetComponentInChildren(typeof(G_RamMonitor),    true) as G_RamMonitor;
+            m_rttMonitor    = GetComponentInChildren(typeof(G_RttMonitor),    true) as G_RttMonitor;
             
             m_fpsManager    = GetComponentInChildren(typeof(G_FpsManager),    true) as G_FpsManager;
-            m_ramManager    = GetComponentInChildren(typeof(G_RamManager),    true) as G_RamManager;
+            m_rttManager    = GetComponentInChildren(typeof(G_RttManager),    true) as G_RttManager;
             m_advancedData  = GetComponentInChildren(typeof(G_AdvancedData),  true) as G_AdvancedData;
 
             m_fpsManager    .SetPosition(m_graphModulePosition);
-            m_ramManager    .SetPosition(m_graphModulePosition);
+            m_rttManager    .SetPosition(m_graphModulePosition);
             m_advancedData  .SetPosition(m_advancedModulePosition);
 
             m_fpsManager    .SetState   (m_fpsModuleState);
-            m_ramManager    .SetState   (m_ramModuleState);
+            m_rttManager    .SetState   (m_rttModuleState);
             m_advancedData  .SetState   (m_advancedModuleState);
 
             if (!m_enableOnStartup)
@@ -556,14 +625,14 @@ namespace Tayx.Graphy
         private void UpdateAllParameters()
         {
             m_fpsManager    .UpdateParameters();
-            m_ramManager    .UpdateParameters();
+            m_rttManager    .UpdateParameters();
             m_advancedData  .UpdateParameters();
         }
 
         private void RefreshAllParameters()
         {
             m_fpsManager    .RefreshParameters();
-            m_ramManager    .RefreshParameters();
+            m_rttManager    .RefreshParameters();
             m_advancedData  .RefreshParameters();
         }
         

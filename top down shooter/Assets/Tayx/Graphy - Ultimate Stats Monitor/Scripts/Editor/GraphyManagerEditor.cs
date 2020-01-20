@@ -35,17 +35,6 @@ namespace Tayx.Graphy
 
         private Texture2D           m_logoTexture;
 
-        private int[]               m_spectrumSizeValues =
-        {
-            128,
-            256,
-            512,
-            1024,
-            2048,
-            4096,
-            8192
-        };
-
         #region Section -> Settings
 
         private SerializedProperty  m_graphyMode;
@@ -94,19 +83,25 @@ namespace Tayx.Graphy
 
         #endregion
 
-        #region Section -> RAM
+        #region Section -> RTT
 
-        private bool                m_ramModuleInspectorToggle          = true;
+        private bool m_rttModuleInspectorToggle = true;
 
-        private SerializedProperty  m_ramModuleState;
-            
-        private SerializedProperty  m_allocatedRamColor;
-        private SerializedProperty  m_reservedRamColor;
-        private SerializedProperty  m_monoRamColor;
+        private SerializedProperty m_rttModuleState;
 
-        private SerializedProperty  m_ramGraphResolution;
+        private SerializedProperty m_timeToResetMinMaxRtt;
 
-        private SerializedProperty  m_ramTextUpdateRate;
+        private SerializedProperty m_goodRttColor;
+        private SerializedProperty m_goodRttThreshold;
+
+        private SerializedProperty m_cautionRttColor;
+        private SerializedProperty m_cautionRttThreshold;
+
+        private SerializedProperty m_criticalRttColor;
+
+        private SerializedProperty m_rttGraphResolution;
+
+        private SerializedProperty m_rttTextUpdateRate;
 
         #endregion
 
@@ -177,23 +172,29 @@ namespace Tayx.Graphy
 
             #endregion
 
-            #region Section -> RAM
+            #region Section -> RTT
 
-            m_ramModuleState                    = serObj.FindProperty("m_ramModuleState");
-            
-            m_allocatedRamColor                 = serObj.FindProperty("m_allocatedRamColor");
-            m_reservedRamColor                  = serObj.FindProperty("m_reservedRamColor");
-            m_monoRamColor                      = serObj.FindProperty("m_monoRamColor");
+            m_rttModuleState = serObj.FindProperty("m_rttModuleState");
 
-            m_ramGraphResolution                = serObj.FindProperty("m_ramGraphResolution");
+            m_timeToResetMinMaxRtt = serObj.FindProperty("m_timeToResetMinMaxRtt");
 
-            m_ramTextUpdateRate                 = serObj.FindProperty("m_ramTextUpdateRate");
+            m_goodRttColor = serObj.FindProperty("m_goodRttColor");
+            m_goodRttThreshold = serObj.FindProperty("m_goodRttThreshold");
+
+            m_cautionRttColor = serObj.FindProperty("m_cautionRttColor");
+            m_cautionRttThreshold = serObj.FindProperty("m_cautionRttThreshold");
+
+            m_criticalRttColor = serObj.FindProperty("m_criticalRttColor");
+
+            m_rttGraphResolution = serObj.FindProperty("m_rttGraphResolution");
+
+            m_rttTextUpdateRate = serObj.FindProperty("m_rttTextUpdateRate");
 
             #endregion
 
             #region Section -> Advanced Settings
 
-            m_advancedModulePosition            = serObj.FindProperty("m_advancedModulePosition");
+            m_advancedModulePosition = serObj.FindProperty("m_advancedModulePosition");
 
             m_advancedModuleState               = serObj.FindProperty("m_advancedModuleState");
 
@@ -585,79 +586,146 @@ namespace Tayx.Graphy
 
             GUILayout.Space(20);
 
-            #region Section -> RAM
+            #region Section -> RTT
 
-            m_ramModuleInspectorToggle = EditorGUILayout.Foldout
+            m_rttModuleInspectorToggle = EditorGUILayout.Foldout
             (
-                m_ramModuleInspectorToggle,
-                content:    " [ RAM ]",
-                style:      foldoutStyle
+                m_rttModuleInspectorToggle,
+                content: " [ RTT ]",
+                style: foldoutStyle
             );
 
             GUILayout.Space(5);
 
-            if (m_ramModuleInspectorToggle)
+            if (m_rttModuleInspectorToggle)
             {
                 EditorGUILayout.PropertyField
                 (
-                    m_ramModuleState,
+                    m_rttModuleState,
                     new GUIContent
                     (
-                        text:       "Module state",
-                        tooltip:    "FULL -> Text + Graph \nTEXT -> Just text \nOFF -> Turned off"
+                        text: "Module state",
+                        tooltip: "FULL -> Text + Graph \nTEXT -> Just text \nOFF -> Turned off"
                     )
                 );
 
                 GUILayout.Space(5);
 
-                EditorGUILayout.LabelField("Graph colors:");
+                EditorGUILayout.LabelField("Rtt thresholds and colors:");
 
                 EditorGUI.indentLevel++;
 
-                m_allocatedRamColor.colorValue = EditorGUILayout.ColorField
-                (
-                    label: "- Allocated",
-                    value: m_allocatedRamColor.colorValue
-                );
+                EditorGUILayout.BeginHorizontal();
 
-                m_reservedRamColor.colorValue = EditorGUILayout.ColorField
-                (
-                    label: "- Reserved",
-                    value: m_reservedRamColor.colorValue
-                );
-
-                m_monoRamColor.colorValue = EditorGUILayout.ColorField
-                (
-                    label: "- Mono",
-                    value: m_monoRamColor.colorValue
-                );
-
-                EditorGUI.indentLevel--;
-
-                if (m_ramModuleState.intValue == 0)
-                {
-                    m_ramGraphResolution.intValue = EditorGUILayout.IntSlider(
-                        new GUIContent
-                        (
-                            text:       "Graph resolution",
-                            tooltip:    "Defines the amount of points are in the graph"
-                        ),
-                        m_ramGraphResolution.intValue,
-                        leftValue:      20,
-                        rightValue:     m_graphyMode.intValue == 0 ? 300 : 128
-                    );
-                }
-
-                m_ramTextUpdateRate.intValue = EditorGUILayout.IntSlider
+                m_goodRttThreshold.intValue = EditorGUILayout.IntField
                 (
                     new GUIContent
                     (
-                        text:       "Text update rate",
-                        tooltip:    "Defines the amount times the text is updated in 1 second."
+                        text: "- Good",
+                        tooltip: "When RTT rise above this value, this color will be used."
                     ),
-                    m_ramTextUpdateRate.intValue,
-                    leftValue:      1,
-                    rightValue:     60
+                    value: m_goodRttThreshold.intValue
+                );
+
+                m_goodRttColor.colorValue = EditorGUILayout.ColorField(m_goodRttColor.colorValue);
+
+                EditorGUILayout.EndHorizontal();
+
+                if (m_goodRttThreshold.intValue <= m_cautionRttThreshold.intValue && m_goodRttThreshold.intValue > 1)
+                {
+                    m_cautionRttThreshold.intValue = m_goodRttThreshold.intValue - 1;
+                }
+                else if (m_goodRttThreshold.intValue <= 1)
+                {
+                    m_goodRttThreshold.intValue = 2;
+                }
+
+                EditorGUILayout.BeginHorizontal();
+
+                m_cautionRttThreshold.intValue = EditorGUILayout.IntField
+                (
+                    new GUIContent
+                    (
+                        text: "- Caution",
+                        tooltip: "When RTT falls between this and the Good value, this color will be used."
+                    ),
+                    value: m_cautionRttThreshold.intValue
+                );
+
+                m_cautionRttColor.colorValue = EditorGUILayout.ColorField(m_cautionRttColor.colorValue);
+
+                EditorGUILayout.EndHorizontal();
+
+                if (m_cautionRttThreshold.intValue >= m_goodRttThreshold.intValue)
+                {
+                    m_cautionRttThreshold.intValue = m_goodRttThreshold.intValue - 1;
+                }
+                else if (m_cautionRttThreshold.intValue <= 0)
+                {
+                    m_cautionRttThreshold.intValue = 1;
+                }
+
+                EditorGUILayout.BeginHorizontal();
+
+                EditorGUILayout.IntField
+                (
+                    new GUIContent
+                    (
+                        text: "- Critical",
+                        tooltip: "When RTT falls below the Caution value, this color will be used. (You can't have negative RTT, so this value is just for reference, it can't be changed)."
+                    ),
+                    value: 0
+                );
+
+                m_criticalRttColor.colorValue = EditorGUILayout.ColorField(m_criticalRttColor.colorValue);
+
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUI.indentLevel--;
+
+                if (m_rttModuleState.intValue == 0)
+                {
+                    m_rttGraphResolution.intValue = EditorGUILayout.IntSlider
+                    (
+                        new GUIContent
+                        (
+                            text: "Graph resolution",
+                            tooltip: "Defines the amount of points in the graph"
+                        ),
+                        m_rttGraphResolution.intValue,
+                        leftValue: 20,
+                        rightValue: m_graphyMode.intValue == 0 ? 300 : 128
+                    );
+                }
+
+                EditorGUIUtility.labelWidth = 180;
+                EditorGUIUtility.fieldWidth = 35;
+
+                m_timeToResetMinMaxRtt.intValue = EditorGUILayout.IntSlider
+                (
+                    new GUIContent
+                    (
+                        text: "Time to reset min/max values",
+                        tooltip: "If the min/max value doesn't change in the specified time, they will be reset. This allows tracking the min/max rtt in a shorter interval. \n\nSet it to 0 if you don't want it to reset."
+                    ),
+                    m_timeToResetMinMaxRtt.intValue,
+                    leftValue: 0,
+                    rightValue: 120
+                );
+
+                EditorGUIUtility.labelWidth = 155;
+                EditorGUIUtility.fieldWidth = 35;
+
+                m_rttTextUpdateRate.intValue = EditorGUILayout.IntSlider
+                (
+                    new GUIContent
+                    (
+                        text: "Text update rate",
+                        tooltip: "Defines the amount times the text is updated in 1 second."
+                    ),
+                    m_rttTextUpdateRate.intValue,
+                    leftValue: 1,
+                    rightValue: 60
                 );
             }
 

@@ -1488,6 +1488,10 @@ PrefabInstance:
       propertyPath: m_updateRate
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 11447854, guid: 0abab5bb77339e4428787a870eb31bd3, type: 3}
+      propertyPath: m_averageSamples
+      value: 120
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 11480938, guid: 0abab5bb77339e4428787a870eb31bd3, type: 3}
   m_SourcePrefab: {fileID: 100100000, guid: 0abab5bb77339e4428787a870eb31bd3, type: 3}

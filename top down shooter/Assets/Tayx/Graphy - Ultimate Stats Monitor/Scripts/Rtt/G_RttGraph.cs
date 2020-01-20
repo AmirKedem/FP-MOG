@@ -13,38 +13,39 @@ using Tayx.Graphy.Graph;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Tayx.Graphy.Fps
+namespace Tayx.Graphy.Rtt
 {
-    public class G_FpsGraph : G_Graph
+
+    public class G_RttGraph : G_Graph
     {
         /* ----- TODO: ----------------------------
          * Add summaries to the variables.
          * Add summaries to the functions.
-         * Check if we should add a "RequireComponent" for "FpsMonitor".
+         * Check if we should add a "RequireComponent" for "RttMonitor".
          * --------------------------------------*/
 
         #region Variables -> Serialized Private
 
-        [SerializeField] private    Image           m_imageGraph = null;
+        [SerializeField] private Image m_imageGraph = null;
 
-        [SerializeField] private    Shader          ShaderFull = null;
-        [SerializeField] private    Shader          ShaderLight = null;
+        [SerializeField] private Shader ShaderFull = null;
+        [SerializeField] private Shader ShaderLight = null;
 
         #endregion
 
         #region Variables -> Private
 
-        private                     GraphyManager   m_graphyManager = null;
+        private GraphyManager m_graphyManager = null;
 
-        private                     G_FpsMonitor    m_fpsMonitor = null;
+        private G_RttMonitor m_rttMonitor = null;
 
-        private                     int             m_resolution        = 150;
+        private int m_resolution = 150;
 
-        private                     G_GraphShader   m_shaderGraph = null;
+        private G_GraphShader m_shaderGraph = null;
 
-        private                     int[]           m_fpsArray;
+        private int[] m_rttArray;
 
-        private                     int             m_highestFps;
+        private int m_highestRtt;
 
         #endregion
 
@@ -61,77 +62,77 @@ namespace Tayx.Graphy.Fps
         }
 
         #endregion
-        
+
         #region Methods -> Public
-        
+
         public void UpdateParameters()
         {
             switch (m_graphyManager.GraphyMode)
             {
                 case GraphyManager.Mode.FULL:
-                    m_shaderGraph.ArrayMaxSize      = G_GraphShader.ArrayMaxSizeFull;
-                    m_shaderGraph.Image.material    = new Material(ShaderFull);
+                    m_shaderGraph.ArrayMaxSize = G_GraphShader.ArrayMaxSizeFull;
+                    m_shaderGraph.Image.material = new Material(ShaderFull);
                     break;
 
                 case GraphyManager.Mode.LIGHT:
-                    m_shaderGraph.ArrayMaxSize      = G_GraphShader.ArrayMaxSizeLight;
-                    m_shaderGraph.Image.material    = new Material(ShaderLight);
+                    m_shaderGraph.ArrayMaxSize = G_GraphShader.ArrayMaxSizeLight;
+                    m_shaderGraph.Image.material = new Material(ShaderLight);
                     break;
             }
 
             m_shaderGraph.InitializeShader();
 
-            m_resolution = m_graphyManager.FpsGraphResolution;
-            
+            m_resolution = m_graphyManager.RttGraphResolution;
+
             CreatePoints();
         }
-        
+
         #endregion
 
         #region Methods -> Protected Override
 
         protected override void UpdateGraph()
         {
-            int fps = (int)(1 / Time.unscaledDeltaTime);
+            int rtt = (int)(1 / Time.unscaledDeltaTime);
 
-            int currentMaxFps = 0;
+            int currentMaxRtt = 0;
 
             for (int i = 0; i <= m_resolution - 1; i++)
             {
                 if (i >= m_resolution - 1)
                 {
-                    m_fpsArray[i] = fps;
+                    m_rttArray[i] = rtt;
                 }
                 else
                 {
-                    m_fpsArray[i] = m_fpsArray[i + 1];
+                    m_rttArray[i] = m_rttArray[i + 1];
                 }
 
-                // Store the highest fps to use as the highest point in the graph
+                // Store the highest rtt to use as the highest point in the graph
 
-                if (currentMaxFps < m_fpsArray[i])
+                if (currentMaxRtt < m_rttArray[i])
                 {
-                    currentMaxFps = m_fpsArray[i];
+                    currentMaxRtt = m_rttArray[i];
                 }
 
             }
 
-            m_highestFps = m_highestFps < 1 || m_highestFps <= currentMaxFps ? currentMaxFps : m_highestFps - 1;
+            m_highestRtt = m_highestRtt < 1 || m_highestRtt <= currentMaxRtt ? currentMaxRtt : m_highestRtt - 1;
 
             for (int i = 0; i <= m_resolution - 1; i++)
             {
-                m_shaderGraph.Array[i]      = m_fpsArray[i] / (float) m_highestFps;
+                m_shaderGraph.Array[i] = m_rttArray[i] / (float)m_highestRtt;
             }
 
             // Update the material values
 
             m_shaderGraph.UpdatePoints();
 
-            m_shaderGraph.Average           = m_fpsMonitor.AverageFPS / m_highestFps;
+            m_shaderGraph.Average = m_rttMonitor.AverageRTT / m_highestRtt;
             m_shaderGraph.UpdateAverage();
 
-            m_shaderGraph.GoodThreshold     = (float)m_graphyManager.GoodFpsThreshold / m_highestFps;
-            m_shaderGraph.CautionThreshold  = (float)m_graphyManager.CautionFpsThreshold / m_highestFps;
+            m_shaderGraph.GoodThreshold = (float)m_graphyManager.GoodRttThreshold / m_highestRtt;
+            m_shaderGraph.CautionThreshold = (float)m_graphyManager.CautionRttThreshold / m_highestRtt;
             m_shaderGraph.UpdateThresholds();
         }
 
@@ -139,19 +140,19 @@ namespace Tayx.Graphy.Fps
         {
             m_shaderGraph.Array = new float[m_resolution];
 
-            m_fpsArray = new int[m_resolution];
+            m_rttArray = new int[m_resolution];
 
             for (int i = 0; i < m_resolution; i++)
             {
                 m_shaderGraph.Array[i] = 0;
             }
 
-            m_shaderGraph.GoodColor     = m_graphyManager.GoodFPSColor;
-            m_shaderGraph.CautionColor  = m_graphyManager.CautionFPSColor;
-            m_shaderGraph.CriticalColor = m_graphyManager.CriticalFPSColor;
-            
+            m_shaderGraph.GoodColor = m_graphyManager.GoodRTTColor;
+            m_shaderGraph.CautionColor = m_graphyManager.CautionRTTColor;
+            m_shaderGraph.CriticalColor = m_graphyManager.CriticalRTTColor;
+
             m_shaderGraph.UpdateColors();
-            
+
             m_shaderGraph.UpdateArray();
         }
 
@@ -163,11 +164,11 @@ namespace Tayx.Graphy.Fps
         {
             m_graphyManager = transform.root.GetComponentInChildren<GraphyManager>();
 
-            m_fpsMonitor    = GetComponent<G_FpsMonitor>();
+            m_rttMonitor = GetComponent<G_RttMonitor>();
 
-            m_shaderGraph   = new G_GraphShader
+            m_shaderGraph = new G_GraphShader
             {
-                Image       = m_imageGraph
+                Image = m_imageGraph
             };
 
             UpdateParameters();
@@ -175,4 +176,5 @@ namespace Tayx.Graphy.Fps
 
         #endregion
     }
+
 }

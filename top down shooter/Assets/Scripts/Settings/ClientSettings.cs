@@ -17,6 +17,8 @@ public class ClientSettings : MonoBehaviour
 
         graphyOverlay.SetActive(true);
 
+        QualitySettings.vSyncCount = 0;
+
         Application.runInBackground = true;
         Application.targetFrameRate = Mathf.Max(frameRate, 1);
         Physics2D.autoSimulation = true;

@@ -132,11 +132,11 @@ namespace Tayx.Graphy.Fps
         /// </param>
         private void SetFpsRelatedTextColor(Text text, float fps)
         {
-            if (fps > m_graphyManager.GoodFPSThreshold)
+            if (fps > m_graphyManager.GoodFpsThreshold)
             {
                 text.color = m_graphyManager.GoodFPSColor;
             }
-            else if (fps > m_graphyManager.CautionFPSThreshold)
+            else if (fps > m_graphyManager.CautionFpsThreshold)
             {
                 text.color = m_graphyManager.CautionFPSColor;
             }
