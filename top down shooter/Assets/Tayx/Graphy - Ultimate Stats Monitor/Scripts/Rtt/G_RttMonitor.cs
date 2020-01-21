@@ -31,6 +31,11 @@ namespace Tayx.Graphy.Rtt
 
         private GraphyManager m_graphyManager;
 
+        // Rolling Float
+
+        private FloatRollingAverage rtt = new FloatRollingAverage(120);
+
+        // Others 
         private float m_currentRtt = 0f;
         private float m_avgRtt = 0f;
         private float m_minRtt = 0f;
@@ -54,7 +59,6 @@ namespace Tayx.Graphy.Rtt
 
         public float CurrentRTT { get { return m_currentRtt; } }
         public float AverageRTT { get { return m_avgRtt; } }
-
         public float MinRTT { get { return m_minRtt; } }
         public float MaxRTT { get { return m_maxRtt; } }
 
@@ -69,67 +73,27 @@ namespace Tayx.Graphy.Rtt
 
         private void Update()
         {
+            // Actual Fps Calculation
             unscaledDeltaTime = Time.unscaledDeltaTime;
 
             m_timeToResetMinRttPassed += unscaledDeltaTime;
             m_timeToResetMaxRttPassed += unscaledDeltaTime;
 
-            // Update rtt and ms
-
+            // Update fps and ms
             m_currentRtt = 1 / unscaledDeltaTime;
 
+            // End Actual Fps Calculation
+
+            // Updating the public variables
+            if (m_currentRtt > 0)
+                rtt.Update(Mathf.Min(m_currentRtt, 999));
+
             // Update avg rtt
-
-            m_avgRtt = 0;
-
-            m_averageRttSamples[ToBufferIndex(m_avgRttSamplesCount)] = m_currentRtt;
-            m_avgRttSamplesOffset = ToBufferIndex(m_avgRttSamplesOffset + 1);
-
-            if (m_avgRttSamplesCount < m_avgRttSamplesCapacity)
-            {
-                m_avgRttSamplesCount++;
-            }
-
-            for (int i = 0; i < m_avgRttSamplesCount; i++)
-            {
-                m_avgRtt += m_averageRttSamples[i];
-            }
-
-            m_avgRtt /= m_avgRttSamplesCount;
-
-            // Checks to reset min and max rtt
-
-            if (m_timeToResetMinMaxRtt > 0
-                && m_timeToResetMinRttPassed > m_timeToResetMinMaxRtt)
-            {
-                m_minRtt = 0;
-                m_timeToResetMinRttPassed = 0;
-            }
-
-            if (m_timeToResetMinMaxRtt > 0
-                && m_timeToResetMaxRttPassed > m_timeToResetMinMaxRtt)
-            {
-                m_maxRtt = 0;
-                m_timeToResetMaxRttPassed = 0;
-            }
-
+            m_avgRtt = rtt.average;
             // Update min rtt
-
-            if (m_currentRtt < m_minRtt || m_minRtt <= 0)
-            {
-                m_minRtt = m_currentRtt;
-
-                m_timeToResetMinRttPassed = 0;
-            }
-
+            m_minRtt = rtt.min;
             // Update max rtt
-
-            if (m_currentRtt > m_maxRtt || m_maxRtt <= 0)
-            {
-                m_maxRtt = m_currentRtt;
-
-                m_timeToResetMaxRttPassed = 0;
-            }
+            m_maxRtt = rtt.max;
         }
 
         #endregion
