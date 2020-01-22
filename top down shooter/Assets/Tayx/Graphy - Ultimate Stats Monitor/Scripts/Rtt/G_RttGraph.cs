@@ -31,6 +31,8 @@ namespace Tayx.Graphy.Rtt
         [SerializeField] private Shader ShaderFull = null;
         [SerializeField] private Shader ShaderLight = null;
 
+        [Tooltip("The Y axis limit of the rtt")]
+        [SerializeField] private int maxLimitRtt = 999;
         #endregion
 
         #region Variables -> Private
@@ -39,7 +41,7 @@ namespace Tayx.Graphy.Rtt
 
         private G_RttMonitor m_rttMonitor = null;
 
-        private int m_resolution = 150;
+        private int m_resolution = 60;
 
         private G_GraphShader m_shaderGraph = null;
 
@@ -93,7 +95,7 @@ namespace Tayx.Graphy.Rtt
 
         protected override void UpdateGraph()
         {
-            int rtt = (int)(1 / Time.unscaledDeltaTime);
+            int rtt = (int) m_rttMonitor.CurrentRTT;
 
             int currentMaxRtt = 0;
 
@@ -112,7 +114,7 @@ namespace Tayx.Graphy.Rtt
 
                 if (currentMaxRtt < m_rttArray[i])
                 {
-                    currentMaxRtt = m_rttArray[i];
+                    currentMaxRtt = Mathf.Min(m_rttArray[i], maxLimitRtt);
                 }
 
             }

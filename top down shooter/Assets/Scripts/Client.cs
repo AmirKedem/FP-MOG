@@ -41,6 +41,9 @@ public class Client : MonoBehaviour
     [SerializeField] private GameObject networkStatePanel;
     [SerializeField] private GameObject networkErrorMessage;
 
+    [SerializeField] private Tayx.Graphy.Rtt.G_RttMonitor RttModule;
+    [SerializeField] private DisplayGUI DisplayGuiRttText;
+
     public static WorldManager wm;
     public static WorldState ws;
     public static ClientInput ci;
@@ -234,6 +237,13 @@ public class Client : MonoBehaviour
         {
             var newWorldState = ServerPktSerializer.DeSerialize(data);
             statisticsModule.RecordRecvPacket(newWorldState.serverTickSeq, newWorldState.clientTickAck, newWorldState.timeSpentInServerms);
+
+            // Set the current calculated rtt to the GUI modules.
+            UnityThread.executeInUpdate(() => {
+                RttModule.UpdateRtt(statisticsModule.CurrentLAG);
+                DisplayGuiRttText.SetRtt(statisticsModule.CurrentLAG);
+            });
+             
 
             if (ws != null)
             {

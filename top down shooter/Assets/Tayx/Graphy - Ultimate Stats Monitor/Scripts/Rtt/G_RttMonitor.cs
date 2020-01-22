@@ -10,7 +10,6 @@
  * -------------------------------------*/
 
 using UnityEngine;
-using System.Runtime.CompilerServices;
 
 namespace Tayx.Graphy.Rtt
 {
@@ -23,7 +22,7 @@ namespace Tayx.Graphy.Rtt
 
         #region Variables -> Serialized Private
 
-        [SerializeField] private int m_averageSamples = 200;
+        [SerializeField] private int m_averageSamples = 120;
 
         #endregion
 
@@ -33,23 +32,13 @@ namespace Tayx.Graphy.Rtt
 
         // Rolling Float
 
-        private FloatRollingAverage rtt = new FloatRollingAverage(120);
+        private FloatRollingAverage rtt;
 
         // Others 
         private float m_currentRtt = 0f;
         private float m_avgRtt = 0f;
         private float m_minRtt = 0f;
         private float m_maxRtt = 0f;
-
-        private float[] m_averageRttSamples;
-        private int m_avgRttSamplesOffset = 0;
-        private int m_indexMask = 0;
-        private int m_avgRttSamplesCapacity = 0;
-        private int m_avgRttSamplesCount = 0;
-        private int m_timeToResetMinMaxRtt = 10;
-
-        private float m_timeToResetMinRttPassed = 0f;
-        private float m_timeToResetMaxRttPassed = 0f;
 
         private float unscaledDeltaTime = 0f;
 
@@ -71,18 +60,13 @@ namespace Tayx.Graphy.Rtt
             Init();
         }
 
-        private void Update()
+        #endregion
+
+        #region Methods -> Public
+
+        public void UpdateRtt(int _rtt)
         {
-            // Actual Fps Calculation
-            unscaledDeltaTime = Time.unscaledDeltaTime;
-
-            m_timeToResetMinRttPassed += unscaledDeltaTime;
-            m_timeToResetMaxRttPassed += unscaledDeltaTime;
-
-            // Update fps and ms
-            m_currentRtt = 1 / unscaledDeltaTime;
-
-            // End Actual Fps Calculation
+            m_currentRtt = _rtt;
 
             // Updating the public variables
             if (m_currentRtt > 0)
@@ -96,13 +80,10 @@ namespace Tayx.Graphy.Rtt
             m_maxRtt = rtt.max;
         }
 
-        #endregion
-
-        #region Methods -> Public
 
         public void UpdateParameters()
         {
-            m_timeToResetMinMaxRtt = m_graphyManager.TimeToResetMinMaxRtt;
+            rtt.Reset();
         }
 
         #endregion
@@ -113,28 +94,7 @@ namespace Tayx.Graphy.Rtt
         {
             m_graphyManager = transform.root.GetComponentInChildren<GraphyManager>();
 
-            ResizeSamplesBuffer(m_averageSamples);
-
-            UpdateParameters();
-        }
-
-
-        private void ResizeSamplesBuffer(int size)
-        {
-            m_avgRttSamplesCapacity = Mathf.NextPowerOfTwo(size);
-
-            m_averageRttSamples = new float[m_avgRttSamplesCapacity];
-
-            m_indexMask = m_avgRttSamplesCapacity - 1;
-            m_avgRttSamplesOffset = 0;
-        }
-
-#if NET_4_6 || NET_STANDARD_2_0
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private int ToBufferIndex(int index)
-        {
-            return (index + m_avgRttSamplesOffset) & m_indexMask;
+            rtt = new FloatRollingAverage(m_averageSamples);
         }
 
         #endregion

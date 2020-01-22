@@ -10,9 +10,10 @@ public class DisplayGUI : MonoBehaviour
     GameObject playerLocal;
 
     float deltaTime = 0.0f;
-    float rtt = 0.0f;
+    int rtt = -1;
 
     readonly int fontSize = 12;
+    readonly int offset = 5;
     int w = Screen.width;
     int h = Screen.height;
 
@@ -25,6 +26,12 @@ public class DisplayGUI : MonoBehaviour
     {
         deltaTime += (Time.unscaledDeltaTime - deltaTime) * 0.1f;
         // deltaTime += (Time.deltaTime - deltaTime) * 0.1f;
+    }
+
+
+    public void SetRtt(int _rtt)
+    {
+        this.rtt = Mathf.Min(_rtt, 999); 
     }
 
     private void OnGUI()
@@ -40,10 +47,12 @@ public class DisplayGUI : MonoBehaviour
     {
         GUIStyle style = new GUIStyle();
 
-        Rect rect = new Rect(0, 0, w, h);
+        Rect rect = new Rect(offset, offset, w, h);
         style.alignment = TextAnchor.UpperLeft;
+        style.fontStyle = FontStyle.Bold;
         style.fontSize = fontSize;
         style.normal.textColor = Color.white;
+
         float fps = Mathf.RoundToInt(1.0f / deltaTime);
         float msec = deltaTime * 1000.0f;
         string text = string.Format("FPS:{0} / {1:0.0} ms", fps, msec);
@@ -54,13 +63,14 @@ public class DisplayGUI : MonoBehaviour
     {
         GUIStyle style = new GUIStyle();
 
-        Rect rect = new Rect(110, 0, w, h);
+        Rect rect = new Rect(offset + 100, offset, w, h);
         style.alignment = TextAnchor.UpperLeft;
+        style.fontStyle = FontStyle.Bold;
         style.fontSize = fontSize;
         style.normal.textColor = Color.white;
 
         string text = string.Format("RTT:---");
-        if (rtt > 0)
+        if (rtt >= 0)
             text = string.Format("RTT:{0}", rtt);
         GUI.Label(rect, text, style);
     }

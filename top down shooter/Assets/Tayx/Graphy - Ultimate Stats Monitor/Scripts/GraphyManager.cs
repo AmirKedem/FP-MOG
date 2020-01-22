@@ -64,7 +64,7 @@ namespace Tayx.Graphy
 
         public enum ModulePreset
         {
-            FPS_BASIC = 0,
+            BASIC = 0,
             FPS_TEXT  = 1,
             FPS_FULL  = 2,
 
@@ -165,7 +165,7 @@ namespace Tayx.Graphy
         private                     G_FpsMonitor            m_fpsMonitor                        = null;
         private                     G_RttMonitor            m_rttMonitor                        = null;
 
-        private                     ModulePreset            m_modulePresetState                 = ModulePreset.FPS_FULL;
+        private                     ModulePreset            m_modulePresetState                 = ModulePreset.FPS_FULL_RTT_FULL;
 
         #endregion
 
@@ -369,8 +369,8 @@ namespace Tayx.Graphy
                 case ModuleType.RTT:
                     m_graphModulePosition = modulePosition;
 
-                    m_rttManager.SetPosition(modulePosition);
                     m_fpsManager.SetPosition(modulePosition);
+                    m_rttManager.SetPosition(modulePosition);
                     break;
 
                 case ModuleType.ADVANCED:
@@ -406,13 +406,15 @@ namespace Tayx.Graphy
 
         public void SetPreset(ModulePreset modulePreset)
         {
+            // Reset mode
+
             m_modulePresetState = modulePreset;
 
             switch (m_modulePresetState)
             {
-                case ModulePreset.FPS_BASIC:
+                case ModulePreset.BASIC:
                     m_fpsManager.SetState(ModuleState.BASIC);
-                    m_rttManager.SetState(ModuleState.OFF);
+                    m_rttManager.SetState(ModuleState.BASIC);
                     m_advancedData.SetState(ModuleState.OFF);
                     break;
 
@@ -503,14 +505,17 @@ namespace Tayx.Graphy
             
             m_fpsManager    = GetComponentInChildren(typeof(G_FpsManager),    true) as G_FpsManager;
             m_rttManager    = GetComponentInChildren(typeof(G_RttManager),    true) as G_RttManager;
+
             m_advancedData  = GetComponentInChildren(typeof(G_AdvancedData),  true) as G_AdvancedData;
 
             m_fpsManager    .SetPosition(m_graphModulePosition);
             m_rttManager    .SetPosition(m_graphModulePosition);
+
             m_advancedData  .SetPosition(m_advancedModulePosition);
 
             m_fpsManager    .SetState   (m_fpsModuleState);
             m_rttManager    .SetState   (m_rttModuleState);
+
             m_advancedData  .SetState   (m_advancedModuleState);
 
             if (!m_enableOnStartup)

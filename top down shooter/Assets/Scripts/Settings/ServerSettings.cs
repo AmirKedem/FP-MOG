@@ -8,8 +8,6 @@ public class ServerSettings : MonoBehaviour
     float ticksPerSecond = 1f;
     void Awake()
     {
-        QualitySettings.vSyncCount = 0;
-
         Application.runInBackground = true;
         Application.targetFrameRate = 60;
         Physics2D.autoSimulation = false;

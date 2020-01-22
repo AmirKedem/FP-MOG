@@ -27,7 +27,6 @@ namespace Tayx.Graphy.Rtt
         #region Variables -> Serialized Private
 
         [SerializeField] private Text m_rttText = null;
-        [SerializeField] private Text m_msText = null;
 
         [SerializeField] private Text m_avgRttText = null;
         [SerializeField] private Text m_minRttText = null;
@@ -43,16 +42,10 @@ namespace Tayx.Graphy.Rtt
 
         private int m_updateRate = 4;  // 4 updates per sec.
 
-        private int m_frameCount = 0;
-
         private float m_deltaTime = 0f;
-
-        private float m_rtt = 0f;
 
         private const int m_minRtt = 0;
         private const int m_maxRtt = 10000;
-
-        private const string m_msStringFormat = "0.0";
 
         #endregion
 
@@ -67,18 +60,17 @@ namespace Tayx.Graphy.Rtt
         {
             m_deltaTime += Time.unscaledDeltaTime;
 
-            m_frameCount++;
-
             // Only update texts 'm_updateRate' times per second
 
             if (m_deltaTime > 1f / m_updateRate)
             {
-                m_rtt = m_frameCount / m_deltaTime;
+                // Reset variable
+                m_deltaTime = 0f;
 
-                // Update rtt and ms
+                // Start Updating Text
+                // Update rtt main field
 
-                m_rttText.text = Mathf.RoundToInt(m_rtt).ToStringNonAlloc();
-                m_msText.text = (m_deltaTime / m_frameCount * 1000f).ToStringNonAlloc(m_msStringFormat);
+                m_rttText.text = Mathf.RoundToInt(m_rttMonitor.CurrentRTT).ToStringNonAlloc();
 
                 // Update min rtt
 
@@ -97,11 +89,6 @@ namespace Tayx.Graphy.Rtt
                 m_avgRttText.text = m_rttMonitor.AverageRTT.ToInt().ToStringNonAlloc();
 
                 SetRttRelatedTextColor(m_avgRttText, m_rttMonitor.AverageRTT);
-
-                // Reset variables
-
-                m_deltaTime = 0f;
-                m_frameCount = 0;
             }
         }
 

@@ -10,13 +10,20 @@ public static class NetworkTick
 
 public class Statistics
 {
+    private int m_currentRtt = 0;  // The rtt in ms
+    private int m_currentLag = 0;  // The overall perceived lag in ms
+
+    public int CurrentRTT { get { return m_currentRtt; } }
+    public int CurrentLAG { get { return m_currentLag; } }
+
+
     // The last tick received from the other end.
     public int tickAck = 0;
 
     System.Diagnostics.Stopwatch m_StopWatch;
     long m_FrequencyMS;
 
-    List<SentTickAtTime> tickBuffer = new List<SentTickAtTime>();// [Tick Number, Sent Time]
+    List<SentTickAtTime> tickBuffer = new List<SentTickAtTime>(); // [Tick Number, Sent Time]
     long receiveTime;
 
     public Statistics()
@@ -44,10 +51,16 @@ public class Statistics
         {
             var item = tickBuffer.Find(x => x.tickNum == recvTickAck);
             long now = m_StopWatch.ElapsedTicks;
-            Debug.Log("Over all Lag: " + (now - item.sentTime) / m_FrequencyMS);
-            Debug.Log("Pure RTT: " + (now - item.sentTime - idleTime) / m_FrequencyMS);
-            // Since we got the Ack back we don't have to store the tick anymore.
-            tickBuffer.Remove(item);
+
+            m_currentRtt = (int) ((now - item.sentTime - idleTime) / m_FrequencyMS);
+            m_currentLag = (int) ((now - item.sentTime) / m_FrequencyMS);
+            
+            Debug.Log("Pure RTT: " + m_currentRtt);
+            Debug.Log("Over all Lag: " + m_currentLag);
+
+            // Since we got the Ack back we don't have to store the tick anymore and every tick until that tick (Because of tcp).
+            // A better approach would a 4 bytes mask where every bit is whether we got the tick or not.
+            tickBuffer.RemoveRange(0, tickBuffer.LastIndexOf(item));
         }
     }
 

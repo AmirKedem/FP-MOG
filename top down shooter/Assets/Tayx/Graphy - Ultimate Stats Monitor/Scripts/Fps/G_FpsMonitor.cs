@@ -10,7 +10,6 @@
  * -------------------------------------*/
 
 using UnityEngine;
-using System.Runtime.CompilerServices;
 
 namespace Tayx.Graphy.Fps
 {
@@ -23,41 +22,35 @@ namespace Tayx.Graphy.Fps
 
         #region Variables -> Serialized Private
 
-        [SerializeField] private    int             m_averageSamples            = 200;
+        [SerializeField] private int m_averageSamples = 120;
 
         #endregion
 
         #region Variables -> Private
 
-        private GraphyManager                       m_graphyManager;
+        private GraphyManager m_graphyManager;
 
-        private                     float           m_currentFps                = 0f;
-        private                     float           m_avgFps                    = 0f;
-        private                     float           m_minFps                    = 0f;
-        private                     float           m_maxFps                    = 0f;
+        // Rolling Float
 
-        private                     float[]         m_averageFpsSamples;
-        private                     int             m_avgFpsSamplesOffset       = 0;
-        private                     int             m_indexMask                 = 0;
-        private                     int             m_avgFpsSamplesCapacity     = 0;
-        private                     int             m_avgFpsSamplesCount        = 0;
-        private                     int             m_timeToResetMinMaxFps      = 10;
+        private FloatRollingAverage fps;
 
-        private                     float           m_timeToResetMinFpsPassed   = 0f;
-        private                     float           m_timeToResetMaxFpsPassed   = 0f;
+        // Others 
+        private float m_currentFps = 0f;
+        private float m_avgFps = 0f;
+        private float m_minFps = 0f;
+        private float m_maxFps = 0f;
 
-        private                     float           unscaledDeltaTime           = 0f;
+        private float unscaledDeltaTime = 0f;
 
         #endregion
 
         #region Properties -> Public
 
-        public                      float           CurrentFPS  { get { return m_currentFps; } }
-        public                      float           AverageFPS  { get { return m_avgFps;} }
+        public float CurrentFPS { get { return m_currentFps; } }
+        public float AverageFPS { get { return m_avgFps; } }
+        public float MinFPS { get { return m_minFps; } }
+        public float MaxFPS { get { return m_maxFps; } }
 
-        public                      float           MinFPS      { get { return m_minFps;} }
-        public                      float           MaxFPS      { get { return m_maxFps;} }
-        
         #endregion
 
         #region Methods -> Unity Callbacks
@@ -69,67 +62,24 @@ namespace Tayx.Graphy.Fps
 
         private void Update()
         {
+            // Actual Fps Calculation
             unscaledDeltaTime = Time.unscaledDeltaTime;
 
-            m_timeToResetMinFpsPassed += unscaledDeltaTime;
-            m_timeToResetMaxFpsPassed += unscaledDeltaTime;
-
             // Update fps and ms
-
             m_currentFps = 1 / unscaledDeltaTime;
 
+            // End Actual Fps Calculation
+
+            // Updating the public variables
+            if (m_currentFps > 0)
+                fps.Update(Mathf.Min(m_currentFps, 999));
+
             // Update avg fps
-
-            m_avgFps = 0;
-
-            m_averageFpsSamples[ToBufferIndex(m_avgFpsSamplesCount)] = m_currentFps;
-            m_avgFpsSamplesOffset = ToBufferIndex(m_avgFpsSamplesOffset + 1);
-            
-            if (m_avgFpsSamplesCount < m_avgFpsSamplesCapacity)
-            {
-                m_avgFpsSamplesCount++;
-            }
-
-            for (int i = 0; i < m_avgFpsSamplesCount; i++)
-            {
-                m_avgFps += m_averageFpsSamples[i];
-            }
-
-            m_avgFps /= m_avgFpsSamplesCount;
-
-            // Checks to reset min and max fps
-
-            if (    m_timeToResetMinMaxFps    > 0 
-                &&  m_timeToResetMinFpsPassed > m_timeToResetMinMaxFps)
-            {
-                m_minFps = 0;
-                m_timeToResetMinFpsPassed = 0;
-            }
-
-            if (    m_timeToResetMinMaxFps    > 0 
-                &&  m_timeToResetMaxFpsPassed > m_timeToResetMinMaxFps)
-            {
-                m_maxFps = 0;
-                m_timeToResetMaxFpsPassed = 0;
-            }
-
+            m_avgFps = fps.average;
             // Update min fps
-
-            if (m_currentFps < m_minFps || m_minFps <= 0)
-            {
-                m_minFps = m_currentFps;
-
-                m_timeToResetMinFpsPassed = 0;
-            }
-
+            m_minFps = fps.min;
             // Update max fps
-
-            if (m_currentFps > m_maxFps || m_maxFps <= 0)
-            {
-                m_maxFps = m_currentFps;
-
-                m_timeToResetMaxFpsPassed = 0;
-            }
+            m_maxFps = fps.max;
         }
 
         #endregion
@@ -138,7 +88,7 @@ namespace Tayx.Graphy.Fps
 
         public void UpdateParameters()
         {
-            m_timeToResetMinMaxFps = m_graphyManager.TimeToResetMinMaxFps;
+            fps.Reset();
         }
 
         #endregion
@@ -149,30 +99,9 @@ namespace Tayx.Graphy.Fps
         {
             m_graphyManager = transform.root.GetComponentInChildren<GraphyManager>();
 
-            ResizeSamplesBuffer(m_averageSamples);
-            
-            UpdateParameters();
+            fps = new FloatRollingAverage(m_averageSamples);
         }
 
-        
-        private void ResizeSamplesBuffer(int size)
-        {
-            m_avgFpsSamplesCapacity = Mathf.NextPowerOfTwo(size);
-
-            m_averageFpsSamples = new float[m_avgFpsSamplesCapacity];
-            
-            m_indexMask = m_avgFpsSamplesCapacity - 1;
-            m_avgFpsSamplesOffset = 0;
-        }
-        
-#if NET_4_6 || NET_STANDARD_2_0
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private int ToBufferIndex(int index)
-        {
-            return (index + m_avgFpsSamplesOffset) & m_indexMask;
-        }
-        
         #endregion
     }
 }
