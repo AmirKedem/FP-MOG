@@ -184,8 +184,8 @@ public class Server : MonoBehaviour
     private void StartServer()
     {
         // Establish the local endpoint for the socket. 
-        IPAddress ipAddress = Globals.GetLocalIPAddress();
-        IPEndPoint localEndPoint = new IPEndPoint(ipAddress, Globals.port);
+        IPAddress ipAddress = ServerInfo.ipAddress;
+        IPEndPoint localEndPoint = ServerInfo.localEP;
 
         Debug.Log("The server is running  on: " + localEndPoint.Address.ToString() + " : " + localEndPoint.Port.ToString());
         Debug.Log("Is loopback: " + IPAddress.IsLoopback(localEndPoint.Address));

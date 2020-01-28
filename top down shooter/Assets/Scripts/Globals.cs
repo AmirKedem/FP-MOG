@@ -6,8 +6,6 @@ using System.Net.Sockets;
 
 public class Globals
 {
-    public const int port = 11000;
-
     /// <summary>method <c>GetLocalIPAddress</c> returns the first local Ethernet IPv4 that has an IPv4 gateway.</summary>
     public static IPAddress GetLocalIPAddress()
     {

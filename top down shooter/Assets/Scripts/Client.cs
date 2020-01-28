@@ -67,7 +67,16 @@ public class Client : MonoBehaviour
 
             // Complete the connection.  
             client.EndConnect(ar);
+
+            // Disable the Nagle Algorithm for this tcp socket.
             client.NoDelay = true;
+
+            // Set the receive buffer size to 4k
+            client.ReceiveBufferSize = 4096;
+
+            // Set the send buffer size to 4k.
+            client.SendBufferSize = 4096;
+
             isConnected = true;
         }
         catch (Exception e)
@@ -151,7 +160,7 @@ public class Client : MonoBehaviour
     private void ReceiveLoop()
     {
         // Size of receive buffer.
-        const int BufferSize = 512;
+        const int BufferSize = 4096;
         // Receive buffer.  
         byte[] buffer = new byte[BufferSize];
         // Received data string.
@@ -262,8 +271,8 @@ public class Client : MonoBehaviour
     private void InitializeNetworking()
     {
         // Establish the remote endpoint for the socket.  
-        IPAddress ipAddress = IPAddress.Parse("192.168.1.29");
-        IPEndPoint remoteEP = new IPEndPoint(ipAddress, Globals.port);
+        IPAddress ipAddress = ClientInfo.ipAddress;
+        IPEndPoint remoteEndPoint = ClientInfo.remoteEP;
         // Create a TCP/IP socket.  
         clientSock = new Socket(ipAddress.AddressFamily,
             SocketType.Stream, ProtocolType.Tcp);
@@ -271,7 +280,7 @@ public class Client : MonoBehaviour
         try
         {
             // Connect to the remote endpoint.  
-            clientSock.BeginConnect(remoteEP,
+            clientSock.BeginConnect(remoteEndPoint,
                 new AsyncCallback(ClientConnectCallback), clientSock);
         }
         catch (Exception e)

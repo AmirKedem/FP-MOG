@@ -55,8 +55,9 @@ public class Statistics
             m_currentRtt = (int) ((now - item.sentTime - idleTime) / m_FrequencyMS);
             m_currentLag = (int) ((now - item.sentTime) / m_FrequencyMS);
             
-            Debug.Log("Pure RTT: " + m_currentRtt);
-            Debug.Log("Over all Lag: " + m_currentLag);
+            // Debug printing
+            // Debug.Log("Pure RTT: " + m_currentRtt);
+            // Debug.Log("Over all Lag: " + m_currentLag);
 
             // Since we got the Ack back we don't have to store the tick anymore and every tick until that tick (Because of tcp).
             // A better approach would a 4 bytes mask where every bit is whether we got the tick or not.

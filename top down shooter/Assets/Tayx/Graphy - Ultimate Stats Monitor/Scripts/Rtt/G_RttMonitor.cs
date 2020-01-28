@@ -40,8 +40,6 @@ namespace Tayx.Graphy.Rtt
         private float m_minRtt = 0f;
         private float m_maxRtt = 0f;
 
-        private float unscaledDeltaTime = 0f;
-
         #endregion
 
         #region Properties -> Public
