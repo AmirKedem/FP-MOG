@@ -216,7 +216,7 @@ public class ServerLoop
         if (player.obj == null)
             return;
 
-        UnityEngine.Debug.Log("Player " + player.obj.name + " Fire");
+        Debug.Log("Player " + player.obj.name + " Fire");
         Vector2 pos = player.obj.transform.position;
 
         float zAngle = (player.obj.transform.rotation.eulerAngles.z) * Mathf.Deg2Rad;
@@ -225,7 +225,7 @@ public class ServerLoop
         RayState newRay = new RayState(player.playerId, zAngle, pos);
         rayStates.Add(newRay);
 
-        UnityEngine.Debug.DrawRay(pos, headingDir * 10f);
+        Debug.DrawRay(pos, headingDir * 10f);
 
         // Cast a ray straight down.
         //RaycastHit2D[] ray = Physics2D.RaycastAll(pos + headingDir * bodyRadius, headingDir);
@@ -240,7 +240,7 @@ public class ServerLoop
         {
             string hitPlayerID = hitPlayer.transform.parent.name;
 
-            UnityEngine.Debug.Log("Player " + player.playerId + " Headshot Player " + hitPlayerID);
+            Debug.Log("Player " + player.playerId + " Headshot Player " + hitPlayerID);
 
             GameObject.Destroy(hitPlayer.transform.parent.gameObject);
         } 
@@ -248,7 +248,7 @@ public class ServerLoop
         {
             string hitPlayerID = hitPlayer.name;
 
-            UnityEngine.Debug.Log("Player " + player.playerId + " Bodyshot Player " + hitPlayerID);
+            Debug.Log("Player " + player.playerId + " Bodyshot Player " + hitPlayerID);
 
             GameObject.Destroy(hitPlayer);
         }
@@ -256,9 +256,9 @@ public class ServerLoop
         // DEBUG
         GameObject circ = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         circ.transform.position = intersect;
-        circ.transform.localScale = new Vector3(0.75f, 0.75f, 0.75f);
+        circ.transform.localScale = new Vector3(0.7f, 0.7f, 0.7f);
 
-        GameObject.Destroy(circ, 0.3f);
+        GameObject.Destroy(circ, 0.4f);
     }
 }
 
