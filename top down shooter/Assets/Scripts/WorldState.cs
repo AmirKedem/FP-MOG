@@ -194,7 +194,7 @@ public struct InputEvent
     public int serverTick; // For Lag Compensation.
     public float deltaTime; // The delta time from the last Server Tick.
     public float zAngle; // The angle between the mouse and the player according to the x axis.
-    public bool mouseDown; 
+    public bool mouseDown; // True for Fire
 
     public InputEvent(int serverTick, float deltaTime, float zAngle, bool mouseDown)
     {

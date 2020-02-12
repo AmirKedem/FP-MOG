@@ -2,16 +2,24 @@
 
 public class ServerSettings : MonoBehaviour
 {
-    [SerializeField]
-    float ticksPerSecond = 1f;
+    [SerializeField] [Range(1, 120)]
+    int ticksPerSecond = 10;
     void Awake()
     {
+        #if UNITY_EDITOR
+        QualitySettings.vSyncCount = 0;
+        #endif
         Application.runInBackground = true;
-        Application.targetFrameRate = 60;
-        Physics2D.autoSimulation = false;
+        Application.targetFrameRate = ticksPerSecond;
 
+        Physics2D.autoSimulation = false;
         Physics2D.gravity = Vector3.zero;
 
-        Time.fixedDeltaTime = 1.0f / ticksPerSecond;
+        Debug.Log("Tick Rate: " + (ticksPerSecond) + " [Hz], Tick Duration: " + (1000f / ticksPerSecond) + "[ms]");
+    }
+
+    private void Update()
+    {
+        Application.targetFrameRate = ticksPerSecond;
     }
 }

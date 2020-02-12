@@ -36,7 +36,8 @@ public class Client : MonoBehaviour
 
     [SerializeField] private Camera cam;
     [SerializeField] private GameObject playerPrefab;
-    [SerializeField] private GameObject playerLocal;
+    [SerializeField] private GameObject playerLocalContainer;
+    [SerializeField] private GameObject playerLocalRigidbody;
 
     [SerializeField] private GameObject networkStatePanel;
     [SerializeField] private GameObject networkErrorMessage;
@@ -310,10 +311,8 @@ public class Client : MonoBehaviour
             if (received)
             {
                 // Take the local player (Player prefab) and use it.
-                Player tmpP = new Player();
-                tmpP.obj = playerLocal;
-                tmpP.rb = tmpP.obj.GetComponent<Rigidbody2D>();
-                tmpP.obj.name = myId.ToString();
+                Player tmpP = new Player((ushort) myId);
+                tmpP.InitPlayer(playerLocalContainer);
                 // Add myself to the list of players.
                 PlayerFromId.Add(myId, tmpP);
                 Debug.Log("Logged in Setup complete");
@@ -351,13 +350,10 @@ public class Client : MonoBehaviour
                     }
                     else
                     {
-                        Player tmpP = new Player();
-                        tmpP.obj = GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
-                        tmpP.rb = tmpP.obj.GetComponent<Rigidbody2D>();
-                        tmpP.obj.name = "Player" + ps.playerId.ToString();
+                        Player tmpP = new Player(ps.playerId);
+                        tmpP.InitPlayer(GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity));
 
                         tmpP.FromState(ps);
-
                         PlayerFromId.Add(ps.playerId, tmpP);
                     }
                 }
@@ -411,7 +407,7 @@ public class Client : MonoBehaviour
             return;
 
         Vector2 mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mouseDir = mousePos - (Vector2) playerLocal.transform.position;
+        Vector2 mouseDir = mousePos - (Vector2) playerLocalRigidbody.transform.position;
         float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
         bool mouseDown = false;
 
@@ -419,13 +415,13 @@ public class Client : MonoBehaviour
         if (Input.GetMouseButtonDown(0))
         {
             mouseDown = true;
-            Debug.DrawRay(playerLocal.transform.position, mouseDir * 10f);
+            Debug.DrawRay(playerLocalRigidbody.transform.position, mouseDir * 10f);
         }
 
         if (ci.inputEvents.Count == 0)
             PacketStartTime.StartStopWatch();
 
-        InputEvent newInputEvent = new InputEvent(0, PacketStartTime.Time, zAngle, mouseDown);
+        InputEvent newInputEvent = new InputEvent(statisticsModule.tickAck, PacketStartTime.Time, zAngle, mouseDown);
         ci.AddEvent(newInputEvent);
     }
 

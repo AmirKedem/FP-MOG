@@ -3,6 +3,75 @@ using System.Linq;
 using UnityEngine;
 
 
+
+/*
+public struct GameTime
+{
+    /// <summary>Number of ticks per second.</summary>
+    public int tickRate
+    {
+        get { return m_tickRate; }
+        set
+        {
+            m_tickRate = value;
+            tickInterval = 1.0f / m_tickRate;
+        }
+    }
+
+    /// <summary>Length of each world tick at current tickrate, e.g. 0.0166s if ticking at 60fps.</summary>
+    public float tickInterval { get; private set; }     // Time between ticks
+    public int tick;                    // Current tick   
+    public float tickDuration;          // Duration of current tick
+
+    public GameTime(int tickRate)
+    {
+        this.m_tickRate = tickRate;
+        this.tickInterval = 1.0f / m_tickRate;
+        this.tick = 1;
+        this.tickDuration = 0;
+    }
+
+    public float TickDurationAsFraction
+    {
+        get { return tickDuration / tickInterval; }
+    }
+
+    public void SetTime(int tick, float tickDuration)
+    {
+        this.tick = tick;
+        this.tickDuration = tickDuration;
+    }
+
+    public float DurationSinceTick(int tick)
+    {
+        return (this.tick - tick) * tickInterval + tickDuration;
+    }
+
+    public void AddDuration(float duration)
+    {
+        tickDuration += duration;
+        int deltaTicks = Mathf.FloorToInt(tickDuration * (float)tickRate);
+        tick += deltaTicks;
+        tickDuration = tickDuration % tickInterval;
+    }
+
+    public static float GetDuration(GameTime start, GameTime end)
+    {
+        if (start.tickRate != end.tickRate)
+        {
+            Debug.LogError("Trying to compare time with different tick rates (" + start.tickRate + " and " + end.tickRate + ")");
+            return 0;
+        }
+
+        float result = (end.tick - start.tick) * start.tickInterval + end.tickDuration - start.tickDuration;
+        return result;
+    }
+
+    int m_tickRate;
+}
+*/
+
+
 public static class StopWacthTime
 {
     static System.Diagnostics.Stopwatch stopWatch;
@@ -18,12 +87,12 @@ public static class StopWacthTime
 
 public class ServerLoop
 {
-    float tickDuration = Time.fixedDeltaTime;
+    float tickDuration;
+    float lastStartTickTime = 0;
+
+    const float speedFactor = 2f;
 
     // Body + head distance from the middle of the body
-
-    const float speedFactor = 1f;
-
     const float bodyRadius = 0.5f/2f + 0.3f/2f + 0.01f;
     const int NoMoreEvents = -1;
 
@@ -36,7 +105,6 @@ public class ServerLoop
     {
         this.playerPrefab = playerPrefab;
         wm = new WorldManager();
-        Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
     }
 
     public void TakeSnapshot(List<Player> players, List<RayState> rayStates)
@@ -57,16 +125,20 @@ public class ServerLoop
 
         Remove used player's User Commands
         
-        Take A Snap Shot of the updated world
+        Take A Snapshot of the updated world
         */
+
         NetworkTick.tickSeq++;
 
         rayStates.Clear();
 
+        tickDuration = Time.deltaTime;
+        // Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
         float startTickTime = StopWacthTime.Time;
         float endTickTime = startTickTime + tickDuration;
 
-        //UnityEngine.Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
+        // Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
+        // Debug.Log("Tick delta " + (Mathf.RoundToInt((startTickTime - lastStartTickTime)/0.00001f) * 0.00001)) // Drift;
 
         float curTime = startTickTime;
         float minorJump;
@@ -77,11 +149,24 @@ public class ServerLoop
         List<ServerUserCommand> currUserCommands;
         List<int> playerEventIndexes = new List<int>();
 
-        foreach (Player p in players)
+        for (int i = players.Count - 1; i >= 0; i--)
         {
-            playerEventIndexes.Add(0);
-            p.MergeWithBuffer();
-            ApplyVelocity(p);
+            Player p = players[i];
+            if (p.playerContainer != null)
+            {
+                // Before we run the tick we store the last tick in the backtracking buffer
+                // Which is then beign used in the lag compensation algorithm.
+                // This snapshot is being taken before the start of the tick therefore we subtract one
+                p.playerContainer.GetComponent<LagCompensationModule>().TakeSnapshot(NetworkTick.tickSeq - 1);
+
+                playerEventIndexes.Add(0);
+                p.MergeWithBuffer();
+                ApplyVelocity(p);
+            } 
+            else
+            {
+                players.Remove(p);
+            }
         }
 
         // Simulate Till first event
@@ -121,9 +206,9 @@ public class ServerLoop
 
         DeleteUsedEvents(players, playerEventIndexes);
 
-        // TODO take and STORE a snapshot of the world state
-
         TakeSnapshot(players, rayStates);
+
+        lastStartTickTime = startTickTime;
     }
 
     private void DeleteUsedEvents(List<Player> players, List<int> playerEventIndexes)
@@ -190,69 +275,73 @@ public class ServerLoop
 
     public void ApplyGameplay(Player player, InputEvent ie)
     {
-        if (player.obj == null)
+        if (player.playerContainer == null)
             return;
 
         float zAngle = Mathf.Repeat(ie.zAngle, 360);
-        player.obj.transform.rotation = Quaternion.Euler(0, 0, zAngle);
+        player.rb.rotation = zAngle;
 
+        ApplyVelocity(player);
+        
         if (ie.mouseDown == true)
         {
-            FireRay(player);
+            FireRayWithLagComp(player, ie.serverTick);
         }
     }
 
     public void ApplyVelocity(Player player)
     {
-        if (player.obj == null)
+        if (player.playerContainer == null)
             return;
 
-        float zAngle = (player.obj.transform.rotation.eulerAngles.z) * Mathf.Deg2Rad;
-        player.rb.velocity = new Vector2(Mathf.Cos(zAngle) * speedFactor, Mathf.Sin(zAngle) * speedFactor);
+        float zAngleRad = player.rb.rotation * Mathf.Deg2Rad;
+        player.rb.velocity = new Vector2(Mathf.Cos(zAngleRad) * speedFactor, Mathf.Sin(zAngleRad) * speedFactor);
     }
 
-    public void FireRay(Player player)
+    public void FireRayNoLagComp(Player player, int tickAck)
     {
-        if (player.obj == null)
+        if (player.playerContainer == null)
             return;
 
-        Debug.Log("Player " + player.obj.name + " Fire");
-        Vector2 pos = player.obj.transform.position;
+        Debug.Log("Player " + player.playerId + " Fire");
+        Vector2 pos = player.rb.position;
 
-        float zAngle = (player.obj.transform.rotation.eulerAngles.z) * Mathf.Deg2Rad;
+        float zAngle = player.rb.rotation * Mathf.Deg2Rad;
         Vector2 headingDir = new Vector2(Mathf.Cos(zAngle), Mathf.Sin(zAngle));
 
         RayState newRay = new RayState(player.playerId, zAngle, pos);
         rayStates.Add(newRay);
 
+        Debug.Log("Was answer for tick: " + tickAck);
+        Debug.Log("But last tick was: " + (NetworkTick.tickSeq - 1));
         Debug.DrawRay(pos, headingDir * 10f);
 
         // Cast a ray straight down.
         //RaycastHit2D[] ray = Physics2D.RaycastAll(pos + headingDir * bodyRadius, headingDir);
-        RaycastHit2D hit = Physics2D.Raycast(pos + headingDir * bodyRadius, headingDir);
+        int masks = 0;
+        masks |= (1 << LayerMask.NameToLayer("Player"));
+        masks |= (1 << LayerMask.NameToLayer("Map"));
+        RaycastHit2D hit = Physics2D.Raycast(pos + headingDir * bodyRadius, headingDir, 1000, masks);
 
         // Calculate the distance from the surface
         // float distance = Vector2.Distance(pos, hit.point);
         Vector2 intersect = hit.point;
         GameObject hitPlayer = hit.collider.gameObject;
 
-        if (hit.collider.gameObject.name == "Head")
+        if (hit.collider.gameObject.CompareTag("Player"))
         {
             string hitPlayerID = hitPlayer.transform.parent.name;
+            GameObject.Destroy(hitPlayer.transform.root.gameObject);
 
-            Debug.Log("Player " + player.playerId + " Headshot Player " + hitPlayerID);
-
-            GameObject.Destroy(hitPlayer.transform.parent.gameObject);
-        } 
-        else if (hit.collider.gameObject.CompareTag("Player"))
-        {
-            string hitPlayerID = hitPlayer.name;
-
-            Debug.Log("Player " + player.playerId + " Bodyshot Player " + hitPlayerID);
-
-            GameObject.Destroy(hitPlayer);
+            if (hit.collider.gameObject.name == "Head")
+            {
+                Debug.Log("Player " + player.playerId + " Headshot Player " + hitPlayerID);
+            }
+            else if (hit.collider.gameObject.name == "Body")
+            {
+                Debug.Log("Player " + player.playerId + " Bodyshot Player " + hitPlayerID);
+            }
         }
-
         // DEBUG
         GameObject circ = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         circ.transform.position = intersect;
@@ -260,5 +349,17 @@ public class ServerLoop
 
         GameObject.Destroy(circ, 0.4f);
     }
+
+    public void FireRayWithLagComp(Player player, int tickAck)
+    {
+        if (player.playerContainer == null)
+            return;
+
+        LagCompensationModule module = player.playerContainer.GetComponent<LagCompensationModule>();
+        
+        // We fire a ray and add that ray to the tick.
+        rayStates.Add(module.FireShotWithBacktrack(tickAck));
+    }
+
 }
 

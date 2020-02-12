@@ -104,20 +104,15 @@ public class Server : MonoBehaviour
         StartServer();
     }
 
-    private void FixedUpdate()
+    private void Update()
     {
         // Network Tick.
         lock (instantiateJobs)
         {
-            Player p;
             for (int i = 0; i < instantiateJobs.Count; i++)
             {
-                p = instantiateJobs[i].player;
-
                 var obj = Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
-                obj.name = p.playerId.ToString();
-                p.obj = obj;
-                p.rb = obj.GetComponent<Rigidbody2D>();
+                instantiateJobs[i].player.InitPlayer(obj);
             }
 
             instantiateJobs.Clear();
@@ -128,7 +123,7 @@ public class Server : MonoBehaviour
         {
             foreach (var disconnectedSock in disconnectedClients)
             {
-                GameObject.Destroy(clients[disconnectedSock].player.obj);
+                GameObject.Destroy(clients[disconnectedSock].player.playerContainer);
 
                 lock (clients)
                 {
@@ -155,6 +150,71 @@ public class Server : MonoBehaviour
             }
         }
     }
+
+    /*
+     
+    Dictionary<int, int> m_TickStats = new Dictionary<int, int>();
+    void UpdateActiveState()
+    {
+        int tickCount = 0;
+        while (Game.frameTime > m_nextTickTime)
+        {
+            tickCount++;
+
+            m_serverGameWorld.ServerTickUpdate();
+            m_NetworkServer.GenerateSnapshot(m_serverGameWorld, m_LastSimTime);
+            m_nextTickTime += m_serverGameWorld.TickInterval;
+
+            m_performLateUpdate = true;
+        }
+
+        //
+        // If running as headless we nudge the Application.targetFramerate back and forth
+        // around the actual framerate -- always trying to have a remaining time of half a frame
+        // The goal is to have the while loop above tick exactly 1 time
+        //
+        // The reason for using targetFramerate is to allow Unity to sleep between frames
+        // reducing cpu usage on server.
+        //
+
+        if (Game.IsHeadless())
+        {
+            float remainTime = (float)(m_nextTickTime - Game.frameTime);
+
+            int rate = m_serverGameWorld.TickRate;
+            if (remainTime > 0.75f * m_serverGameWorld.TickInterval)
+                rate -= 2;
+            else if (remainTime < 0.25f * m_serverGameWorld.TickInterval)
+                rate += 2;
+
+            Application.targetFrameRate = rate;
+
+            //
+            // Show some stats about how many world ticks per unity update we have been running
+            //
+
+            if (debugServerTickStats.IntValue > 0)
+            {
+                if (Time.frameCount % 10 == 0)
+                    GameDebug.Log(remainTime + ":" + rate);
+
+                if (!m_TickStats.ContainsKey(tickCount))
+                    m_TickStats[tickCount] = 0;
+                m_TickStats[tickCount] = m_TickStats[tickCount] + 1;
+                if (Time.frameCount % 100 == 0)
+                {
+                    foreach (var p in m_TickStats)
+                    {
+                        GameDebug.Log(p.Key + ":" + p.Value);
+                    }
+                }
+            }
+        }
+    }
+
+    */
+
+
 
     private void SendSnapshot(Socket sock, WorldState snapshot)
     {
@@ -334,3 +394,4 @@ public class Server : MonoBehaviour
         catch { }
     }
 }
+ 

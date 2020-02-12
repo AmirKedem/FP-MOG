@@ -8,6 +8,7 @@ public class Player
     static ushort playerIdCount = 0;
     public ushort playerId;
     public int rtt;
+    public GameObject playerContainer;
     public GameObject obj;
     public Rigidbody2D rb;
 
@@ -23,6 +24,18 @@ public class Player
     public Player(ushort id)
     {
         playerId = id;
+    }
+
+    public void InitPlayer(GameObject go)
+    {
+        playerContainer = go;
+        playerContainer.name = "Player " + playerId.ToString();
+
+        obj = playerContainer.transform.Find("Rigidbody").gameObject;
+        rb = obj.GetComponent<Rigidbody2D>();
+
+        // Attach the Lag compensation module to the new instantiated player.
+        playerContainer.AddComponent<LagCompensationModule>().Init(this);
     }
 
     public static ushort GetPlayerId()
@@ -86,3 +99,8 @@ public class ServerUserCommand
         return ret;
     }
 } 
+
+
+
+
+
