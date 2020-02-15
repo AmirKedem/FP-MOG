@@ -193,13 +193,16 @@ public struct InputEvent
 {
     public int serverTick; // For Lag Compensation.
     public float deltaTime; // The delta time from the last Server Tick.
+    // Player Inputs
+    public byte keys; // A bit mask [1: W, 2: A, 4: S, 8: D] => [0001: W, 0010: A, 0100: S, 1000: D]
     public float zAngle; // The angle between the mouse and the player according to the x axis.
     public bool mouseDown; // True for Fire
 
-    public InputEvent(int serverTick, float deltaTime, float zAngle, bool mouseDown)
+    public InputEvent(int serverTick, float deltaTime, byte keys, float zAngle, bool mouseDown)
     {
         this.serverTick = serverTick;
         this.deltaTime = deltaTime;
+        this.keys = keys;
         this.zAngle = zAngle;
         this.mouseDown = mouseDown;
     }
@@ -209,15 +212,19 @@ public struct InputEvent
     {
         serverTick = NetworkUtils.DeserializeInt(data, ref offset);
         deltaTime = NetworkUtils.DeserializeFloat(data, ref offset);
+        keys = NetworkUtils.DeserializeByte(data, ref offset);
         zAngle = NetworkUtils.DeserializeFloat(data, ref offset);
         mouseDown = NetworkUtils.DeserializeBool(data, ref offset);
+        Debug.Log(mouseDown);
     }
 
     // Serializes this object and add it as bytes to a given byte list.
     public void AddBytesTo(List<byte> byteList)
     {
+        Debug.Log(byteList);
         NetworkUtils.SerializeInt(byteList, serverTick);
         NetworkUtils.SerializeFloat(byteList, deltaTime);
+        NetworkUtils.SerializeByte(byteList, keys);
         NetworkUtils.SerializeFloat(byteList, zAngle);
         NetworkUtils.SerializeBool(byteList, mouseDown);
     }

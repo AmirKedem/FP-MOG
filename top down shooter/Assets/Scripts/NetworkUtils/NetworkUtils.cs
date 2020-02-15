@@ -7,6 +7,11 @@ public static class NetworkUtils
 {
 
     // ------ Serialize ------
+    public static void SerializeByte(List<byte> byteList, byte data)
+    {
+        byteList.Add(data);
+    }
+
     public static void SerializeBool(List<byte> byteList, bool data)
     {
         byteList.AddRange(BitConverter.GetBytes(data));
@@ -47,6 +52,13 @@ public static class NetworkUtils
 
 
     // ------ Deserialize ------
+    public static byte DeserializeByte(byte[] data, ref int offset)
+    {
+        byte ret = data[offset];
+        offset += sizeof(byte);
+        return ret;
+    }
+
     public static bool DeserializeBool(byte[] data, ref int offset)
     {
         bool ret = BitConverter.ToBoolean(data, offset);

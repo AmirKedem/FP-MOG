@@ -2,8 +2,6 @@
 using System.Linq;
 using UnityEngine;
 
-
-
 /*
 public struct GameTime
 {
@@ -70,6 +68,7 @@ public struct GameTime
     int m_tickRate;
 }
 */
+
 
 
 public static class StopWacthTime
@@ -161,7 +160,6 @@ public class ServerLoop
 
                 playerEventIndexes.Add(0);
                 p.MergeWithBuffer();
-                ApplyVelocity(p);
             } 
             else
             {
@@ -280,22 +278,36 @@ public class ServerLoop
 
         float zAngle = Mathf.Repeat(ie.zAngle, 360);
         player.rb.rotation = zAngle;
+        player.obj.transform.rotation = Quaternion.Euler(0, 0, zAngle);
 
-        ApplyVelocity(player);
-        
+        ApplyMovement(player, ie);
+
         if (ie.mouseDown == true)
         {
             FireRayWithLagComp(player, ie.serverTick);
         }
     }
 
-    public void ApplyVelocity(Player player)
+    public Vector2 RotateVector(Vector2 v, float radian)
+    {
+        float _x = v.x * Mathf.Cos(radian) - v.y * Mathf.Sin(radian);
+        float _y = v.x * Mathf.Sin(radian) + v.y * Mathf.Cos(radian);
+        return new Vector2(_x, _y);
+    }
+
+    public void ApplyMovement(Player player, InputEvent ie)
     {
         if (player.playerContainer == null)
             return;
 
-        float zAngleRad = player.rb.rotation * Mathf.Deg2Rad;
-        player.rb.velocity = new Vector2(Mathf.Cos(zAngleRad) * speedFactor, Mathf.Sin(zAngleRad) * speedFactor);
+        float zAngleRad = (player.rb.rotation - 90) * Mathf.Deg2Rad;
+
+        byte keys = ie.keys;
+        int x = (int)((keys >> 3) & 1) - (int)((keys >> 1) & 1);
+        int y = (int)((keys >> 0) & 1) - (int)((keys >> 2) & 1);
+        
+        Vector2 movement = RotateVector(new Vector2(x * speedFactor, y * speedFactor), zAngleRad);
+        player.rb.velocity = movement;
     }
 
     public void FireRayNoLagComp(Player player, int tickAck)

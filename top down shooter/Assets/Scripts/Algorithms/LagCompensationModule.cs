@@ -77,8 +77,6 @@ public class LagCompensationModule : MonoBehaviour
             SnapshotInfo colliderInfo = hit.transform.parent.GetComponent<SnapshotInfo>();
             if (colliderInfo.Player != attachedPlayer && colliderInfo.SnapshotTick == tickAck)
             {
-                Debug.Break();
-                /*
                 // Kill the player, destroy its container gameobject
                 GameObject.Destroy(colliderInfo.PlayerContainer);
                 // Check and logs what have we hit, a headshot or a bodyshot
@@ -91,7 +89,6 @@ public class LagCompensationModule : MonoBehaviour
                 {
                     Debug.Log("Player " + attachedPlayer.playerId + " Bodyshot Player " + hitPlayerID);
                 }
-                */
                 // DEBUG intersection
                 Vector2 intersect = hit.point;
                 GameObject circ = GameObject.CreatePrimitive(PrimitiveType.Sphere);

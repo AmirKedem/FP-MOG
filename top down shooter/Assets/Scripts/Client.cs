@@ -418,10 +418,28 @@ public class Client : MonoBehaviour
             Debug.DrawRay(playerLocalRigidbody.transform.position, mouseDir * 10f);
         }
 
+        byte pressedKeys = 0;
+        if (Input.GetKey(KeyCode.W))
+        {
+            pressedKeys |= 1 << 0;
+        } 
+        else if (Input.GetKey(KeyCode.A))
+        {
+            pressedKeys |= 1 << 1;
+        }
+        else if (Input.GetKey(KeyCode.S))
+        {
+            pressedKeys |= 1 << 2;
+        }
+        else if (Input.GetKey(KeyCode.D))
+        {
+            pressedKeys |= 1 << 3;
+        }
+
         if (ci.inputEvents.Count == 0)
             PacketStartTime.StartStopWatch();
 
-        InputEvent newInputEvent = new InputEvent(statisticsModule.tickAck, PacketStartTime.Time, zAngle, mouseDown);
+        InputEvent newInputEvent = new InputEvent(statisticsModule.tickAck, PacketStartTime.Time, pressedKeys, zAngle, mouseDown);
         ci.AddEvent(newInputEvent);
     }
 
