@@ -19,3 +19,7 @@ and currently in POC state.
     - Client Side Prediction
 
 This project is created as part of 5 points Cyber Course
+
+
+### Resources
+https://github.com/MFatihMAR/Game-Networking-Resources
