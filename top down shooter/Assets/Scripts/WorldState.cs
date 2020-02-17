@@ -215,13 +215,11 @@ public struct InputEvent
         keys = NetworkUtils.DeserializeByte(data, ref offset);
         zAngle = NetworkUtils.DeserializeFloat(data, ref offset);
         mouseDown = NetworkUtils.DeserializeBool(data, ref offset);
-        Debug.Log(mouseDown);
     }
 
     // Serializes this object and add it as bytes to a given byte list.
     public void AddBytesTo(List<byte> byteList)
     {
-        Debug.Log(byteList);
         NetworkUtils.SerializeInt(byteList, serverTick);
         NetworkUtils.SerializeFloat(byteList, deltaTime);
         NetworkUtils.SerializeByte(byteList, keys);

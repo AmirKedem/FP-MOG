@@ -34,8 +34,11 @@ public class Player
         obj = playerContainer.transform.Find("Rigidbody").gameObject;
         rb = obj.GetComponent<Rigidbody2D>();
 
+        /*
+        // TODO init for client as well and not just for the server for now it has been moved to the server after InitPlayer.
         // Attach the Lag compensation module to the new instantiated player.
         playerContainer.AddComponent<LagCompensationModule>().Init(this);
+        */
     }
 
     public static ushort GetPlayerId()

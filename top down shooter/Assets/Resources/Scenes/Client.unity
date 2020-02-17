@@ -335,7 +335,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   localPlayerTransform: {fileID: 23080930}
-  smoothTime: 0.3
+  smoothTime: 1
 --- !u!114 &74434414
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -343,7 +343,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 74434409}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1a3b036799f86cb408e56375ab503285, type: 3}
   m_Name: 
@@ -1055,6 +1055,7 @@ GameObject:
   - component: {fileID: 1596326379}
   - component: {fileID: 1596326378}
   - component: {fileID: 1596326377}
+  - component: {fileID: 1596326380}
   m_Layer: 0
   m_Name: Client
   m_TagString: Untagged
@@ -1141,6 +1142,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ipAddressString: 192.168.1.29
   port: 11000
+--- !u!114 &1596326380
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1596326374}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d64814b1bd6f61a4e865770a013cf49a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cursorTexture: {fileID: 2800000, guid: e7fbb4ae8231e3441a7b1780fe6a7c44, type: 3}
 --- !u!1 &1663412146 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 2981047247527626001, guid: 0abab5bb77339e4428787a870eb31bd3,

@@ -89,7 +89,7 @@ public class ServerLoop
     float tickDuration;
     float lastStartTickTime = 0;
 
-    const float speedFactor = 2f;
+    const float speedFactor = 3f;
 
     // Body + head distance from the middle of the body
     const float bodyRadius = 0.5f/2f + 0.3f/2f + 0.01f;
@@ -305,8 +305,13 @@ public class ServerLoop
         byte keys = ie.keys;
         int x = (int)((keys >> 3) & 1) - (int)((keys >> 1) & 1);
         int y = (int)((keys >> 0) & 1) - (int)((keys >> 2) & 1);
-        
-        Vector2 movement = RotateVector(new Vector2(x * speedFactor, y * speedFactor), zAngleRad);
+
+        // Scale the vector by the speed factor.
+        Vector2 movement = new Vector2(x, y).normalized * speedFactor;
+
+        // forward is always towards heading direction.
+        // movement = RotateVector(movement, zAngleRad);
+
         player.rb.velocity = movement;
     }
 
@@ -326,7 +331,7 @@ public class ServerLoop
 
         Debug.Log("Was answer for tick: " + tickAck);
         Debug.Log("But last tick was: " + (NetworkTick.tickSeq - 1));
-        Debug.DrawRay(pos, headingDir * 10f);
+        Debug.DrawRay(pos, headingDir * 100f);
 
         // Cast a ray straight down.
         //RaycastHit2D[] ray = Physics2D.RaycastAll(pos + headingDir * bodyRadius, headingDir);

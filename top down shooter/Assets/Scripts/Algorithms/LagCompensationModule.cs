@@ -54,7 +54,7 @@ public class LagCompensationModule : MonoBehaviour
 
         Debug.Log("Was answer for tick: " + tickAck);
         Debug.Log("But last tick was: " + (NetworkTick.tickSeq - 1));
-        Debug.DrawRay(pos, headingDir * 10f);
+        Debug.DrawRay(pos, headingDir * 100f);
 
         // Cast a ray straight down.
         RaycastHit2D[] results = Physics2D.RaycastAll(pos + headingDir * bodyRadius, headingDir, 100, lagCompensationMask);

@@ -15,7 +15,7 @@ public class User
     public Player player;
     public Socket sock = null;
     // Size of receive buffer.
-    protected const int BufferSize = 1500;
+    protected const int BufferSize = 4096;
     // Receive buffer.  
     public byte[] buffer = new byte[BufferSize];
     // Received data string.
@@ -32,7 +32,13 @@ public class User
     {
         // Configure  the given socket for every client.
         this.sock = sock;
+
+        // Disable the Nagle Algorithm for this tcp socket.
         this.sock.NoDelay = true;
+        // Set the receive buffer size to 4k
+        this.sock.ReceiveBufferSize = 4096;
+        // Set the send buffer size to 4k.
+        this.sock.SendBufferSize = 4096;
 
         player = new Player();
         statisticsModule = new Statistics();
@@ -113,6 +119,9 @@ public class Server : MonoBehaviour
             {
                 var obj = Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
                 instantiateJobs[i].player.InitPlayer(obj);
+
+                // Attach the Lag compensation module to the new instantiated player.
+                obj.AddComponent<LagCompensationModule>().Init(instantiateJobs[i].player);
             }
 
             instantiateJobs.Clear();
@@ -215,7 +224,6 @@ public class Server : MonoBehaviour
     */
 
 
-
     private void SendSnapshot(Socket sock, WorldState snapshot)
     {
         var usr = clients[sock];
@@ -223,7 +231,7 @@ public class Server : MonoBehaviour
         snapshot.UpdateStatistics(statisticsModule.tickAck, statisticsModule.GetTimeSpentIdlems());
 
         var message = ServerPktSerializer.Serialize(snapshot);
-        Console.WriteLine("Fixed Update Send Reply " + message.Length);
+        Console.WriteLine("Update Send Reply " + message.Length);
         BeginSend(usr, message);
     }
 

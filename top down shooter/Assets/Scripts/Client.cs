@@ -71,10 +71,8 @@ public class Client : MonoBehaviour
 
             // Disable the Nagle Algorithm for this tcp socket.
             client.NoDelay = true;
-
             // Set the receive buffer size to 4k
             client.ReceiveBufferSize = 4096;
-
             // Set the send buffer size to 4k.
             client.SendBufferSize = 4096;
 
@@ -362,7 +360,7 @@ public class Client : MonoBehaviour
                 {
                     var start = rs.pos;
                     var headingVec = new Vector2(Mathf.Cos(rs.zAngle), Mathf.Sin(rs.zAngle));
-                    var end = start + headingVec * 100f;
+                    var end = start + headingVec * 500f;
                     DrawLine(start, end, Color.yellow, 0.3f);
                 }
 
@@ -422,16 +420,19 @@ public class Client : MonoBehaviour
         if (Input.GetKey(KeyCode.W))
         {
             pressedKeys |= 1 << 0;
-        } 
-        else if (Input.GetKey(KeyCode.A))
+        }
+        
+        if (Input.GetKey(KeyCode.A))
         {
             pressedKeys |= 1 << 1;
         }
-        else if (Input.GetKey(KeyCode.S))
+
+        if (Input.GetKey(KeyCode.S))
         {
             pressedKeys |= 1 << 2;
         }
-        else if (Input.GetKey(KeyCode.D))
+
+        if (Input.GetKey(KeyCode.D))
         {
             pressedKeys |= 1 << 3;
         }
