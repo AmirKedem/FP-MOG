@@ -17,11 +17,11 @@ This project is created as part of 5 points Cyber Course
 
 ## Netcode
 
-For real-time games, an authoritative server controls the game state. Clients are only responsible for sending commands ('Left', 'Right', etc.) and rendering the state.
+For real-time games, an authoritative server controls the game state. Clients are only responsible for sending commands ('Left', 'Right', 'Shoot', etc.) and rendering the state.
 
 While this approach prevents cheating and allows lower-end machines to run the game, it introduces some delay between clients. Furthermore, the server can't send 60fps updates to every player in the room.
 
-Therefore, game devs developed some neat algorithms to make the game experience smoother and to try and lower the precieved lag by the players.
+Therefore, game devs have developed some neat algorithms to make the game experience smoother and lower the perceived lag by the players.
 
 ## Algorithms:
     - Lag Compensation [Done]
