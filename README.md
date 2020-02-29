@@ -25,7 +25,7 @@ Therefore, game devs have developed some neat algorithms to make the game experi
 
 ## Algorithms:
     - Lag Compensation [Done]
-    - Interpolation
+    - Client Side Interpolation
     - Client Side Prediction
 
 ![Imgur](https://i.imgur.com/nIhGLDz.gif)
@@ -33,17 +33,6 @@ Therefore, game devs have developed some neat algorithms to make the game experi
 In this demo, some delay is introduced to simulate a real client-server communication.
 
 ## Theory
-
-### Client-Side Prediction
-
-#### Smooth PLAYER movement
-
-The problem with extrapolating positions is fairly obvious: it is impossible to accurately predict the future. It will render movement correctly only if the movement is constant, but this will not always be the case. Players may change both speed and direction at random. This may result in a small amount of "warping" as new updates arrive and the estimated positions are corrected, and also cause problems for hit detection as players may be rendered in positions they are not actually in.
-
-In order to allow smooth gameplay, the client is allowed to do soft changes to the game state. While the server may ultimately keep track of ammunition, health, position, etc., the client may be allowed to predict the new server-side game state based on the player's actions, such as allowing a player to start moving before the server has responded to the command. These changes will generally be accepted under normal conditions and make delay mostly transparent. Problems will arise only in the case of high delays or losses, when the client's predictions are very noticeably undone by the server. Sometimes, in the case of minor differences, the server may even allow "incorrect" changes to the state based on updates from the client.
-
-Client-side prediction is performed only on the entity of the client, or his player.
-
 
 ### Client-Side Interpolation
 
@@ -54,6 +43,17 @@ Clients rely on interpolation to render a fluid and smooth game experience: inst
 Interpolation ensures that objects will move between valid positions only and will produce good results with constant delay and no loss. The downside of interpolation is that it causes the world to be rendered with additional latency, increasing the need for some form of lag compensation to be implemented.
 
 Client-side Interpolation is performed only on the other players, or enemies, since the player's entity is using client side prediction.
+
+
+### Client-Side Prediction
+
+#### Smooth PLAYER movement
+
+The problem with extrapolating positions is fairly obvious: it is impossible to accurately predict the future. It will render movement correctly only if the movement is constant, but this will not always be the case. Players may change both speed and direction at random. This may result in a small amount of "warping" as new updates arrive and the estimated positions are corrected, and also cause problems for hit detection as players may be rendered in positions they are not actually in.
+
+In order to allow smooth gameplay, the client is allowed to do soft changes to the game state. While the server may ultimately keep track of ammunition, health, position, etc., the client may be allowed to predict the new server-side game state based on the player's actions, such as allowing a player to start moving before the server has responded to the command. These changes will generally be accepted under normal conditions and make delay mostly transparent. Problems will arise only in the case of high delays or losses, when the client's predictions are very noticeably undone by the server. Sometimes, in the case of minor differences, the server may even allow "incorrect" changes to the state based on updates from the client.
+
+Client-side prediction is performed only on the entity of the client, or his character.
 
 
 ### Lag Compensation
