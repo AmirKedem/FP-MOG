@@ -32,6 +32,11 @@ public static class PacketStartTime
 
 public class Client : MonoBehaviour
 {
+    bool interpolationFlag = true;
+    bool predictionFlag = true;
+
+    bool lagcompensationFlag = true;
+
     [SerializeField] private Material lineMat;
 
     [SerializeField] private Camera cam;
@@ -46,7 +51,7 @@ public class Client : MonoBehaviour
     [SerializeField] private DisplayGUI DisplayGuiRttText;
 
     public static WorldManager wm;
-    public static WorldState ws;
+    public static WorldState snapshot;
     public static ClientInput ci;
     public static Statistics statisticsModule;
 
@@ -320,61 +325,64 @@ public class Client : MonoBehaviour
         }
         else
         {
-            // Check if we got a new message or not
-            RenderServerTick();
+            
+            if (interpolationFlag == true)
+            {
+                snapshot = snapshotBuffer.Interpolate();
+            }
+            else
+            {
+                snapshot = snapshotBuffer.GetLast();
+            }
+
+            RenderServerTick(snapshot);
 
             // Check if we can send a new message or not
             ClientTick();
         }
     }
 
-    private void RenderServerTick()
+    private void RenderServerTick(WorldState snapshot)
     {
-        if (ws != null)
+        DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
+
+        foreach (PlayerState ps in snapshot.playersState)
         {
-            lock (ws)
+            // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
+            DisconnectedPlayersIds.Remove(ps.playerId);
+
+            if (PlayerFromId.ContainsKey(ps.playerId))
             {
-                DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
-
-                foreach (PlayerState ps in ws.playersState)
-                {
-                    // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
-                    DisconnectedPlayersIds.Remove(ps.playerId);
-
-                    if (PlayerFromId.ContainsKey(ps.playerId))
-                    {
-                        // Update Scene from the new given State
-                        PlayerFromId[ps.playerId].FromState(ps);
-                    }
-                    else
-                    {
-                        Player tmpP = new Player(ps.playerId);
-                        tmpP.InitPlayer(GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity));
-
-                        tmpP.FromState(ps);
-                        PlayerFromId.Add(ps.playerId, tmpP);
-                    }
-                }
-
-                foreach (RayState rs in ws.raysState)
-                {
-                    var start = rs.pos;
-                    var headingVec = new Vector2(Mathf.Cos(rs.zAngle), Mathf.Sin(rs.zAngle));
-                    var end = start + headingVec * 500f;
-                    DrawLine(start, end, Color.yellow, 0.3f);
-                }
-
-                // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
-                foreach (int playerId in DisconnectedPlayersIds)
-                {
-                    if (playerId == myId)
-                    {
-                        Application.Quit();
-                    }
-                    Destroy(PlayerFromId[playerId].obj);
-                    PlayerFromId.Remove(playerId);
-                }
+                // Update Scene from the new given State
+                PlayerFromId[ps.playerId].FromState(ps);
             }
+            else
+            {
+                Player tmpP = new Player(ps.playerId);
+                tmpP.InitPlayer(GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity));
+
+                tmpP.FromState(ps);
+                PlayerFromId.Add(ps.playerId, tmpP);
+            }
+        }
+
+        foreach (RayState rs in snapshot.raysState)
+        {
+            var start = rs.pos;
+            var headingVec = new Vector2(Mathf.Cos(rs.zAngle), Mathf.Sin(rs.zAngle));
+            var end = start + headingVec * 500f;
+            DrawLine(start, end, Color.yellow, 0.3f);
+        }
+
+        // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
+        foreach (int playerId in DisconnectedPlayersIds)
+        {
+            if (playerId == myId)
+            {
+                Application.Quit();
+            }
+            Destroy(PlayerFromId[playerId].obj);
+            PlayerFromId.Remove(playerId);
         }
     }
 

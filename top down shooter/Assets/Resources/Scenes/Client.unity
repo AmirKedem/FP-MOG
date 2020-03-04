@@ -1154,7 +1154,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d64814b1bd6f61a4e865770a013cf49a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cursorTexture: {fileID: 2800000, guid: e7fbb4ae8231e3441a7b1780fe6a7c44, type: 3}
+  cursorTexture: {fileID: 2800000, guid: 9958cd9125cebbb428bd1168397499c9, type: 3}
 --- !u!1 &1663412146 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 2981047247527626001, guid: 0abab5bb77339e4428787a870eb31bd3,
