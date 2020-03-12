@@ -32,7 +32,7 @@ public static class PacketStartTime
 
 public class Client : MonoBehaviour
 {
-    bool interpolationFlag = true;
+    bool interpolationFlag = false;
     bool predictionFlag = true;
 
     bool lagcompensationFlag = true;
@@ -51,14 +51,23 @@ public class Client : MonoBehaviour
     [SerializeField] private DisplayGUI DisplayGuiRttText;
 
     public static WorldManager wm;
+    public static ClientReceiveBuffer snapshotReceiveBuffer;
+
     public static WorldState snapshot;
     public static ClientInput ci;
+    public static PlayerInputHandler playerInputHandler;
     public static Statistics statisticsModule;
 
     private static int myId;
     private static bool received = false;
     public static Dictionary<int, Player> PlayerFromId = new Dictionary<int, Player>();
     public static HashSet<int> DisconnectedPlayersIds = new HashSet<int>();
+
+
+    float time = 0;
+    float timeSinceLastFrame = 0;
+    float lerpTimeFactor = (1f / 20f) * 1000f; // 50 ms
+
 
     // The client socket
     private static Socket clientSock;
@@ -249,26 +258,15 @@ public class Client : MonoBehaviour
         else
         {
             var newWorldState = ServerPktSerializer.DeSerialize(data);
-            statisticsModule.RecordRecvPacket(newWorldState.serverTickSeq, newWorldState.clientTickAck, newWorldState.timeSpentInServerms);
+            statisticsModule.RecordRecvPacket(newWorldState.serverTickSeq, newWorldState.clientTickAck, newWorldState.timeSpentInServerInTicks);
 
             // Set the current calculated rtt to the GUI modules.
             UnityThread.executeInUpdate(() => {
                 RttModule.UpdateRtt(statisticsModule.CurrentLAG);
                 DisplayGuiRttText.SetRtt(statisticsModule.CurrentLAG);
             });
-             
 
-            if (ws != null)
-            {
-                lock (ws)
-                {
-                    ws = newWorldState;
-                }
-            }
-            else
-            {
-                ws = newWorldState;
-            }
+            snapshotReceiveBuffer.AppendNewSnapshot(newWorldState);
         }
     }
 
@@ -300,53 +298,20 @@ public class Client : MonoBehaviour
         wm = new WorldManager();
         statisticsModule = new Statistics();
 
+        snapshotReceiveBuffer = new ClientReceiveBuffer();
+        playerInputHandler = new PlayerInputHandler(playerLocalRigidbody.transform, cam);
+
         UnityThread.initUnityThread();
 
         Thread thr = new Thread(new ThreadStart(InitializeNetworking));
         thr.Start();
     }
 
-    private void FixedUpdate()
-    {
-        // Here we deal with the networking part
-        if (!PlayerFromId.ContainsKey(myId))
-        {
-            if (received)
-            {
-                // Take the local player (Player prefab) and use it.
-                Player tmpP = new Player((ushort) myId);
-                tmpP.InitPlayer(playerLocalContainer);
-                // Add myself to the list of players.
-                PlayerFromId.Add(myId, tmpP);
-                Debug.Log("Logged in Setup complete");
-                // Init Player Input Events.
-                ci = new ClientInput(); 
-            }
-        }
-        else
-        {
-            
-            if (interpolationFlag == true)
-            {
-                snapshot = snapshotBuffer.Interpolate();
-            }
-            else
-            {
-                snapshot = snapshotBuffer.GetLast();
-            }
-
-            RenderServerTick(snapshot);
-
-            // Check if we can send a new message or not
-            ClientTick();
-        }
-    }
-
-    private void RenderServerTick(WorldState snapshot)
+    private void RenderServerTick(List<PlayerState> playerStates, List<RayState> rayStates)
     {
         DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
 
-        foreach (PlayerState ps in snapshot.playersState)
+        foreach (PlayerState ps in playerStates)
         {
             // Since we got the id in the players state this ps.Id client is still connected thus we remove it from the hashset.
             DisconnectedPlayersIds.Remove(ps.playerId);
@@ -366,7 +331,7 @@ public class Client : MonoBehaviour
             }
         }
 
-        foreach (RayState rs in snapshot.raysState)
+        foreach (RayState rs in rayStates)
         {
             var start = rs.pos;
             var headingVec = new Vector2(Mathf.Cos(rs.zAngle), Mathf.Sin(rs.zAngle));
@@ -388,11 +353,12 @@ public class Client : MonoBehaviour
 
     private void ClientTick()
     {
-        if (ci != null && ci.inputEvents.Count > 0)
+        ci = playerInputHandler.GetClientInput();
+        if (ci.inputEvents.Count > 0)
         {
             // Network Tick
             NetworkTick.tickSeq++;
-            ci.UpdateStatistics(NetworkTick.tickSeq, statisticsModule.tickAck, statisticsModule.GetTimeSpentIdlems());
+            ci.UpdateStatistics(NetworkTick.tickSeq, statisticsModule.tickAck, statisticsModule.GetTimeSpentIdleInTicks());
             Send(ClientPktSerializer.Serialize(ci));
             statisticsModule.RecordSentPacket();
             // Clear the list of events.
@@ -408,48 +374,44 @@ public class Client : MonoBehaviour
             Disconnect();
             Application.Quit();
         }
-        
-        if (ci == null)
-            return;
 
-        Vector2 mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mouseDir = mousePos - (Vector2) playerLocalRigidbody.transform.position;
-        float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
-        bool mouseDown = false;
+        playerInputHandler.AddInputEvent(statisticsModule.tickAck, PacketStartTime.Time);
 
-        // Fire Button is Down.
-        if (Input.GetMouseButtonDown(0))
+        // Here we deal with the networking part
+        if (!PlayerFromId.ContainsKey(myId))
         {
-            mouseDown = true;
-            Debug.DrawRay(playerLocalRigidbody.transform.position, mouseDir * 10f);
+            if (received)
+            {
+                // Take the local player (Player prefab) and use it.
+                Player tmpP = new Player((ushort)myId);
+                tmpP.InitPlayer(playerLocalContainer);
+                // Add myself to the list of players.
+                PlayerFromId.Add(myId, tmpP);
+                Debug.Log("Logged in Setup complete");
+            }
         }
-
-        byte pressedKeys = 0;
-        if (Input.GetKey(KeyCode.W))
+        else
         {
-            pressedKeys |= 1 << 0;
-        }
-        
-        if (Input.GetKey(KeyCode.A))
-        {
-            pressedKeys |= 1 << 1;
-        }
+            Tuple<List<PlayerState>, List<RayState>> snapshot;
+            if (interpolationFlag == true)
+            {
+                /*
+                Debug.Log(statisticsModule.GetTimeSpentIdleInMS());
+                Debug.Log(lerpTimeFactor);
+                Debug.Log(statisticsModule.GetTimeSpentIdleInMS() / lerpTimeFactor);
+                */
+                snapshot = snapshotReceiveBuffer.Interpolate(statisticsModule.GetTimeSpentIdleInMS() / lerpTimeFactor);
+            }
+            else
+            {
+                snapshot = snapshotReceiveBuffer.GetLast();
+            }
 
-        if (Input.GetKey(KeyCode.S))
-        {
-            pressedKeys |= 1 << 2;
+            if (snapshot != null)
+                RenderServerTick(snapshot.Item1, snapshot.Item2);
+
+            ClientTick();
         }
-
-        if (Input.GetKey(KeyCode.D))
-        {
-            pressedKeys |= 1 << 3;
-        }
-
-        if (ci.inputEvents.Count == 0)
-            PacketStartTime.StartStopWatch();
-
-        InputEvent newInputEvent = new InputEvent(statisticsModule.tickAck, PacketStartTime.Time, pressedKeys, zAngle, mouseDown);
-        ci.AddEvent(newInputEvent);
     }
 
     void OnApplicationQuit()
@@ -469,8 +431,6 @@ public class Client : MonoBehaviour
         }
     }
 
-
-
     // TODO put it in another class
     void DrawLine(Vector3 start, Vector3 end, Color color, float duration = 0.15f)
     {
@@ -488,5 +448,89 @@ public class Client : MonoBehaviour
 
         lr.sortingLayerName = "Debug";
         GameObject.Destroy(myLine, duration);
+    }
+}
+
+
+public class PlayerInputHandler {
+
+    ClientInput ci;
+    Transform localPlayerTransform;
+    Camera cam;
+
+    float zAngle;
+    bool mouseDown;
+    byte pressedKeys;
+
+    public PlayerInputHandler(Transform localPlayerTransform, Camera cam)
+    {
+        // Init Player Input Events.
+        ci = new ClientInput();
+
+        this.localPlayerTransform = localPlayerTransform;
+        this.cam = cam;
+    }
+
+    public void AddInputEvent(int tickAck, float deltaTime)
+    {
+        if (ci.inputEvents.Count == 0)
+            PacketStartTime.StartStopWatch();
+
+        SetMouseDir();
+
+        SetMouseDown();
+
+        SetKeyboardMask();
+
+        InputEvent newInputEvent = new InputEvent(tickAck, deltaTime, pressedKeys, zAngle, mouseDown);
+        ci.AddEvent(newInputEvent);
+    }
+
+    public ClientInput GetClientInput()
+    {
+        return ci;
+    }
+
+    private void SetKeyboardMask()
+    {
+        pressedKeys = 0;
+
+        if (Input.GetKey(KeyCode.W))
+        {
+            pressedKeys |= 1 << 0;
+        }
+
+        if (Input.GetKey(KeyCode.A))
+        {
+            pressedKeys |= 1 << 1;
+        }
+
+        if (Input.GetKey(KeyCode.S))
+        {
+            pressedKeys |= 1 << 2;
+        }
+
+        if (Input.GetKey(KeyCode.D))
+        {
+            pressedKeys |= 1 << 3;
+        }
+    }
+
+    private void SetMouseDown()
+    {
+        mouseDown = false;
+
+        // Fire Button is Down.
+        if (Input.GetMouseButtonDown(0))
+        {
+            mouseDown = true;
+        }
+    }
+
+    private void SetMouseDir()
+    {
+        Vector2 mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 mouseDir = mousePos - (Vector2) localPlayerTransform.position;
+        zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
     }
 }

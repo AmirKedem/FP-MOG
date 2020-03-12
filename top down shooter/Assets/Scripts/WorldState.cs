@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 
@@ -54,8 +55,8 @@ public class WorldState
     public int serverTickSeq;
     // On which client tick this message applies.
     public int clientTickAck;
-    // amount of milisecs
-    public long timeSpentInServerms;  
+    // the amount of ticks the packet was at the server
+    public long timeSpentInServerInTicks;  
 
     public List<PlayerState> playersState = new List<PlayerState>();
     public List<RayState> raysState = new List<RayState>();
@@ -66,10 +67,10 @@ public class WorldState
     }
 
     // Call This function just before send is being called
-    public void UpdateStatistics(int clientTickAck, long timeSpentInServerms)
+    public void UpdateStatistics(int clientTickAck, long timeSpentInServerInTicks)
     {
         this.clientTickAck = clientTickAck;
-        this.timeSpentInServerms = timeSpentInServerms;
+        this.timeSpentInServerInTicks = timeSpentInServerInTicks;
     }
 
     public void AddState(PlayerState state)
@@ -87,7 +88,7 @@ public class WorldState
     {
         serverTickSeq = NetworkUtils.DeserializeInt(data, ref offset);
         clientTickAck = NetworkUtils.DeserializeInt(data, ref offset);
-        timeSpentInServerms = NetworkUtils.DeserializeLong(data, ref offset);
+        timeSpentInServerInTicks = NetworkUtils.DeserializeLong(data, ref offset);
 
         ushort len;
 
@@ -105,7 +106,7 @@ public class WorldState
     {
         NetworkUtils.SerializeInt(byteList, serverTickSeq);
         NetworkUtils.SerializeInt(byteList, clientTickAck);
-        NetworkUtils.SerializeLong(byteList, timeSpentInServerms);
+        NetworkUtils.SerializeLong(byteList, timeSpentInServerInTicks);
 
         NetworkUtils.SerializeUshort(byteList, (ushort) playersState.Count);
         foreach (var playerState in playersState)
@@ -141,19 +142,19 @@ public class ClientInput
     public int clientTickSeq;
     // On which server tick this message applies.
     public int serverTickAck;
-    // amount of milisecs
-    public long timeSpentInClientms;  
+    // the amount of ticks the packet was at the client
+    public long timeSpentInClientInTicks;  
 
     public List<InputEvent> inputEvents = new List<InputEvent>();
 
     public ClientInput() { }
 
     // Call This function just before send is being called
-    public void UpdateStatistics(int clientTickSeq, int serverTickAck, long timeSpentInClientms)
+    public void UpdateStatistics(int clientTickSeq, int serverTickAck, long timeSpentInClientInTicks)
     {
         this.clientTickSeq = clientTickSeq;
         this.serverTickAck = serverTickAck;
-        this.timeSpentInClientms = timeSpentInClientms;
+        this.timeSpentInClientInTicks = timeSpentInClientInTicks;
     }
 
     public void AddEvent(InputEvent ie)
@@ -166,7 +167,7 @@ public class ClientInput
     {
         clientTickSeq = NetworkUtils.DeserializeInt(data, ref offset);
         serverTickAck = NetworkUtils.DeserializeInt(data, ref offset);
-        timeSpentInClientms = NetworkUtils.DeserializeLong(data, ref offset);
+        timeSpentInClientInTicks = NetworkUtils.DeserializeLong(data, ref offset);
 
         ushort len;
 
@@ -180,7 +181,7 @@ public class ClientInput
     {
         NetworkUtils.SerializeInt(byteList, clientTickSeq);
         NetworkUtils.SerializeInt(byteList, serverTickAck);
-        NetworkUtils.SerializeLong(byteList, timeSpentInClientms);
+        NetworkUtils.SerializeLong(byteList, timeSpentInClientInTicks);
 
         NetworkUtils.SerializeUshort(byteList, (ushort) inputEvents.Count);
         foreach (var ie in inputEvents)
@@ -291,6 +292,34 @@ public struct PlayerState
         NetworkUtils.SerializeFloat(byteList, zAngle);
         NetworkUtils.SerializeVector2(byteList, pos);
         NetworkUtils.SerializeVector2(byteList, vel);
+    }
+
+    public static void Interp(List<PlayerState> prevStates, List<PlayerState> nextStates, float f,
+                              ref List<PlayerState> playerStates)
+    {
+        playerStates.Clear();
+
+        PlayerState temp;
+        
+        foreach (var nextState in nextStates)
+        {
+            var prevState = prevStates.FirstOrDefault(x => x.playerId == nextState.playerId);
+            // Check whether the end result is also contained in the start snapshot
+            // if so we can interpolate otherwise we simply set the value.
+            if (!nextState.Equals(default(PlayerState))) {
+                // interpolate
+                var interpPosition = Vector2.Lerp(prevState.pos, nextState.pos, f);
+                var interpRotation = Mathf.LerpAngle(prevState.zAngle, nextState.zAngle, f);
+
+                temp = new PlayerState(nextState.playerId, interpRotation, interpPosition, nextState.vel);
+                playerStates.Add(temp);
+            } 
+            else
+            {
+                // set the value directly
+                playerStates.Add(nextState);
+            }
+        }
     }
 }
 

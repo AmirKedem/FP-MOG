@@ -80,7 +80,7 @@ public class User
     private void ProcessMessage(byte[] data)
     {
         var ci = ClientPktSerializer.DeSerialize(data);
-        statisticsModule.RecordRecvPacket(ci.clientTickSeq, ci.serverTickAck, ci.timeSpentInClientms);
+        statisticsModule.RecordRecvPacket(ci.clientTickSeq, ci.serverTickAck, ci.timeSpentInClientInTicks);
         this.player.CacheClientInput(ci);
     }
 }
@@ -223,15 +223,14 @@ public class Server : MonoBehaviour
 
     */
 
-
     private void SendSnapshot(Socket sock, WorldState snapshot)
     {
         var usr = clients[sock];
         var statisticsModule = usr.statisticsModule;
-        snapshot.UpdateStatistics(statisticsModule.tickAck, statisticsModule.GetTimeSpentIdlems());
+        snapshot.UpdateStatistics(statisticsModule.tickAck, statisticsModule.GetTimeSpentIdleInTicks());
 
         var message = ServerPktSerializer.Serialize(snapshot);
-        Console.WriteLine("Update Send Reply " + message.Length);
+        //Console.WriteLine("Update Send Reply " + message.Length);
         BeginSend(usr, message);
     }
 
@@ -246,7 +245,7 @@ public class Server : MonoBehaviour
         User user = (iar.AsyncState as User);
         user.statisticsModule.RecordSentPacket();
         int BytesSent = user.sock.EndSend(iar);
-        Console.WriteLine("Bytes Sent: " + BytesSent);
+        //Console.WriteLine("Bytes Sent: " + BytesSent);
     }
 
     private void StartServer()

@@ -9,6 +9,9 @@ public class DisplayGUI : MonoBehaviour
     [SerializeField]
     GameObject playerLocal;
 
+    [SerializeField]
+    GameObject backgroundImages;
+
     float deltaTime = 0.0f;
     int rtt = -1;
 
@@ -20,6 +23,7 @@ public class DisplayGUI : MonoBehaviour
     private void Start()
     {
         cam = Camera.main;
+        backgroundImages.SetActive(true);
     }
 
     private void Update()
@@ -65,9 +69,10 @@ public class DisplayGUI : MonoBehaviour
 
         Rect rect = new Rect(offset + 100, offset, w, h);
         style.alignment = TextAnchor.UpperLeft;
-        style.fontStyle = FontStyle.Bold;
+
         style.fontSize = fontSize;
         style.normal.textColor = Color.white;
+        style.fontStyle = FontStyle.Bold;
 
         string text = string.Format("RTT:---");
         if (rtt >= 0)
@@ -79,14 +84,16 @@ public class DisplayGUI : MonoBehaviour
     {
         GUIStyle style = new GUIStyle();
 
-        Rect rect = new Rect(0, 0, w, h);
+        Rect rect = new Rect(offset, -offset, w, h);
         style.alignment = TextAnchor.LowerLeft;
+
         style.fontSize = fontSize;
         style.normal.textColor = Color.white;
+
         Vector2 mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mouseDir = mousePos - (Vector2)playerLocal.transform.position;
+        Vector2 mouseDir = mousePos - (Vector2) playerLocal.transform.position;
         float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
-        string text = String.Format("Angle: {0:0.00}", zAngle);
+        string text = String.Format("Angle: {0:0.0}", zAngle);
         GUI.Label(rect, text, style);
     }
 }

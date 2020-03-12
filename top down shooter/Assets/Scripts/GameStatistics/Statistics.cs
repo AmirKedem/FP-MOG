@@ -72,10 +72,16 @@ public class Statistics
         receiveTime = now;
     }
 
-    public long GetTimeSpentIdlems()
+    public long GetTimeSpentIdleInTicks()
     {
         long now = m_StopWatch.ElapsedTicks;
         return (now - receiveTime);
+    }
+
+    public long GetTimeSpentIdleInMS()
+    {
+        long now = m_StopWatch.ElapsedTicks;
+        return (now - receiveTime)/m_FrequencyMS;
     }
 }
 
