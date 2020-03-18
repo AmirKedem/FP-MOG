@@ -1,6 +1,53 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 
+public class MyStopWatch
+{
+    System.Diagnostics.Stopwatch m_StopWatch;
+    public long m_FrequencyMS  // property
+    {
+        // set method
+        set { }
+        // get method
+        get
+        {
+            return m_FrequencyMS;
+        }
+    }
+
+    public long NowInMS  // property
+    {
+        // set method
+        set { }
+        // get method
+        get
+        { 
+            return m_StopWatch.ElapsedTicks / m_FrequencyMS; 
+        }
+    }
+
+    public long NowInTicks  // property
+    {
+        // set method
+        set { }
+        // get method
+        get
+        {
+            return m_StopWatch.ElapsedTicks;
+        }
+    }
+
+    public MyStopWatch()
+    {
+        m_FrequencyMS = System.Diagnostics.Stopwatch.Frequency / 1000;
+        m_StopWatch = new System.Diagnostics.Stopwatch();
+        m_StopWatch.Start();
+    }
+
+}
+
+
+
 
 public static class NetworkTick
 {
@@ -81,7 +128,8 @@ public class Statistics
     public long GetTimeSpentIdleInMS()
     {
         long now = m_StopWatch.ElapsedTicks;
-        return (now - receiveTime)/m_FrequencyMS;
+        return (now - receiveTime) / m_FrequencyMS;
+
     }
 }
 

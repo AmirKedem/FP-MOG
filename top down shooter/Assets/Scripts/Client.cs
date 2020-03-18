@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using UnityEditor;
 using UnityEngine;
 
 
@@ -30,14 +31,109 @@ public static class PacketStartTime
 }
 
 
+public class ClientReceiveMessage
+{
+    Client client;
+    Socket clientSock;
+
+    // Size of receive buffer.
+    const int BufferSize = 4096;
+    // Receive buffer.  
+    byte[] buffer = new byte[BufferSize];
+    // Received data string.
+    MemoryStream ms = new MemoryStream();
+    byte[] data;
+
+    int bytesRec = 0;
+    int offset = 0;
+    int len;
+    int cut;
+
+    public ClientReceiveMessage(Client client, Socket clientSock)
+    {
+        this.client = client;
+        this.clientSock = clientSock;
+    }
+
+    public Byte[] ReceiveOnce()
+    {
+        /*
+         * returns one message in a byte array which then get processed by the client
+         * one message may require serveral calls to '.Receive' function.
+         */
+
+        // Receive the response from the remote device.
+        if (offset >= bytesRec)
+        {
+            if (SafeReceive(ref buffer, ref bytesRec, ref offset))
+                return null;
+        }
+
+        len = Globals.DeSerializeLenPrefix(buffer, offset);
+        offset += sizeof(int);
+
+        while (len > 0)
+        {
+            cut = Math.Min(len, bytesRec - offset);
+            ms.Write(buffer, offset, cut);
+            len -= cut;
+            offset += cut;
+
+            if (len > 0)
+            {
+                // The left over of the previous message.
+                if (SafeReceive(ref buffer, ref bytesRec, ref offset))
+                    return null;
+            }
+        }
+
+        // Process one message from the stream.
+        data = ms.ToArray();
+        // Clear the buffer.
+        ms.SetLength(0);
+
+        return data;
+    }
+
+    private bool SafeReceive(ref byte[] buffer, ref int bytesRec, ref int offset)
+    {
+        try
+        {
+            bytesRec = clientSock.Receive(buffer);
+
+            // Which means an empty packet
+            if (bytesRec <= sizeof(int))
+            {
+                client.Disconnect();
+                return true;
+            }
+        }
+        catch
+        {
+            client.Disconnect();
+            return true;
+        }
+
+        offset = 0;
+        return false;
+    }
+
+}
+
+
 public class Client : MonoBehaviour
 {
-    bool interpolationFlag = false;
+    [SerializeField]
+    bool interpolationFlag = true;
+    [SerializeField]
+    ToggleController interpolationToggle;
+
+    [SerializeField]
     bool predictionFlag = true;
+    [SerializeField]
+    ToggleController predictionToggle;
 
     bool lagcompensationFlag = true;
-
-    [SerializeField] private Material lineMat;
 
     [SerializeField] private Camera cam;
     [SerializeField] private GameObject playerPrefab;
@@ -63,15 +159,22 @@ public class Client : MonoBehaviour
     public static Dictionary<int, Player> PlayerFromId = new Dictionary<int, Player>();
     public static HashSet<int> DisconnectedPlayersIds = new HashSet<int>();
 
-
-    float time = 0;
-    float timeSinceLastFrame = 0;
-    float lerpTimeFactor = (1f / 20f) * 1000f; // 50 ms
-
-
     // The client socket
+    private ClientReceiveMessage clientReceiveMessage;
     private static Socket clientSock;
     private static bool isConnected = false;
+
+
+    public void FlipInterpolationFlag()
+    {
+        interpolationFlag = !interpolationFlag;
+        snapshotReceiveBuffer.Reset();
+    }
+
+    public void FlipPredictionFlag()
+    {
+        predictionFlag = !predictionFlag;
+    }
 
     private void ClientConnectCallback(IAsyncResult ar)
     {
@@ -94,7 +197,7 @@ public class Client : MonoBehaviour
         }
         catch (Exception e)
         {
-            UnityThread.executeInFixedUpdate(() =>
+            UnityThread.executeInUpdate(() =>
             {
                 networkErrorMessage.SetActive(true);
             });
@@ -108,11 +211,11 @@ public class Client : MonoBehaviour
         Debug.Log(string.Format("Socket connected to {0}", clientSock.RemoteEndPoint.ToString()));
         Debug.Log("Connected, Setup Done");
 
-        UnityThread.executeInFixedUpdate(() =>
+        UnityThread.executeInUpdate(() =>
         {
             networkStatePanel.SetActive(false);
         });
-        
+
         // Start the receive thread
         StartReceive();
     }
@@ -172,102 +275,53 @@ public class Client : MonoBehaviour
 
     private void ReceiveLoop()
     {
-        // Size of receive buffer.
-        const int BufferSize = 4096;
-        // Receive buffer.  
-        byte[] buffer = new byte[BufferSize];
-        // Received data string.
-        MemoryStream ms = new MemoryStream();
         byte[] data;
 
-        int bytesRec = 0;
-        int offset = 0;
-        int len;
-        int cut;
-        // Each iteration processes one message which may require serveral calls to '.Receive' fnc.
+        // Receive the welcome packet first to initialize some variables
+        data = clientReceiveMessage.ReceiveOnce();
+        ProcessWelcomeMessage(data);
+
+        // Each iteration processes one message at a time.
+        // or in other words one world state or a snapshot.
         while (true)
         {
-            // Receive the response from the remote device.
-            if (offset >= bytesRec) {
-                if (SafeReceive(ref buffer, ref bytesRec, ref offset))
-                    return;
-            }
-
-            len = Globals.DeSerializeLenPrefix(buffer, offset);
-            offset += sizeof(int);
-
-            while (len > 0)
-            {
-                cut = Math.Min(len, bytesRec - offset);
-                ms.Write(buffer, offset, cut);
-                len -= cut;
-                offset += cut;
-
-                if (len > 0)
-                {
-                    // The left over of the previous message.
-                    if (SafeReceive(ref buffer, ref bytesRec, ref offset))
-                        return;
-                }
-            }
-
-            // Process one message from the stream.
-            data = ms.ToArray();
-            ProcessMessage(data);
-            // Clear the buffer.
-            ms.SetLength(0);
+            data = clientReceiveMessage.ReceiveOnce();
+            ProcessWorldStateMessage(data);
         }
     }
 
-    private bool SafeReceive(ref byte[] buffer, ref int bytesRec, ref int offset)
+    private void ProcessWelcomeMessage(byte[] data)
     {
-        try
-        {
-            bytesRec = clientSock.Receive(buffer);
+        // Connection Message
+        // Here we get our own ID.
+        int dataOffset = 0;
 
-            // Which means an empty packet
-            if (bytesRec <= sizeof(int))
-            {
-                Disconnect();
-                return true;
-            }
-        }
-        catch
-        {
-            Disconnect();
-            return true;
-        }
+        myId = NetworkUtils.DeserializeUshort(data, ref dataOffset);
+        var ticksPerSecond = NetworkUtils.DeserializeUshort(data, ref dataOffset);
 
-        offset = 0;
-        return false;
-    } 
+        snapshotReceiveBuffer = new ClientReceiveBuffer(ticksPerSecond);
 
-    private void ProcessMessage(byte[] data)
+        Debug.Log("My ID Is: " + myId);
+        Debug.Log("Server Send Rate: " + ticksPerSecond);
+
+        Debug.Log("Logged In.");
+        received = true;
+    }
+
+    private void ProcessWorldStateMessage(byte[] data)
     {
         // Process one message from a byte array.
-        if (data.Length == sizeof(ushort))
-        {
-            // Connection Message
-            // Here we get our own ID.
-            int dataOffset = 0;
-            myId = NetworkUtils.DeserializeUshort(data, ref dataOffset);
+        // Here we process the world state, deserialize it, record some statistics and store the new world state in a buffer.
+        var newWorldState = ServerPktSerializer.DeSerialize(data);
+        statisticsModule.RecordRecvPacket(newWorldState.serverTickSeq, newWorldState.clientTickAck, newWorldState.timeSpentInServerInTicks);
 
-            Debug.Log("My ID Is: " + myId);
-            received = true;
-        }
-        else
-        {
-            var newWorldState = ServerPktSerializer.DeSerialize(data);
-            statisticsModule.RecordRecvPacket(newWorldState.serverTickSeq, newWorldState.clientTickAck, newWorldState.timeSpentInServerInTicks);
+        // Set the current calculated rtt to the GUI modules.
+        UnityThread.executeInUpdate(() => {
+            RttModule.UpdateRtt(statisticsModule.CurrentLAG);
+            DisplayGuiRttText.SetRtt(statisticsModule.CurrentLAG);
+        });
 
-            // Set the current calculated rtt to the GUI modules.
-            UnityThread.executeInUpdate(() => {
-                RttModule.UpdateRtt(statisticsModule.CurrentLAG);
-                DisplayGuiRttText.SetRtt(statisticsModule.CurrentLAG);
-            });
-
-            snapshotReceiveBuffer.AppendNewSnapshot(newWorldState);
-        }
+        snapshotReceiveBuffer.AppendNewSnapshot(newWorldState);
     }
 
     private void InitializeNetworking()
@@ -278,6 +332,8 @@ public class Client : MonoBehaviour
         // Create a TCP/IP socket.  
         clientSock = new Socket(ipAddress.AddressFamily,
             SocketType.Stream, ProtocolType.Tcp);
+
+        clientReceiveMessage = new ClientReceiveMessage(this, clientSock);
 
         try
         {
@@ -298,8 +354,10 @@ public class Client : MonoBehaviour
         wm = new WorldManager();
         statisticsModule = new Statistics();
 
-        snapshotReceiveBuffer = new ClientReceiveBuffer();
         playerInputHandler = new PlayerInputHandler(playerLocalRigidbody.transform, cam);
+
+        interpolationFlag = interpolationToggle.isOn;
+        predictionFlag = predictionToggle.isOn;
 
         UnityThread.initUnityThread();
 
@@ -333,10 +391,7 @@ public class Client : MonoBehaviour
 
         foreach (RayState rs in rayStates)
         {
-            var start = rs.pos;
-            var headingVec = new Vector2(Mathf.Cos(rs.zAngle), Mathf.Sin(rs.zAngle));
-            var end = start + headingVec * 500f;
-            DrawLine(start, end, Color.yellow, 0.3f);
+            DrawRay.DrawLine(rs.pos, rs.zAngle, 100f, Color.red, 0.5f);
         }
 
         // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
@@ -395,12 +450,7 @@ public class Client : MonoBehaviour
             Tuple<List<PlayerState>, List<RayState>> snapshot;
             if (interpolationFlag == true)
             {
-                /*
-                Debug.Log(statisticsModule.GetTimeSpentIdleInMS());
-                Debug.Log(lerpTimeFactor);
-                Debug.Log(statisticsModule.GetTimeSpentIdleInMS() / lerpTimeFactor);
-                */
-                snapshot = snapshotReceiveBuffer.Interpolate(statisticsModule.GetTimeSpentIdleInMS() / lerpTimeFactor);
+                snapshot = snapshotReceiveBuffer.Interpolate();
             }
             else
             {
@@ -420,7 +470,7 @@ public class Client : MonoBehaviour
         Disconnect();
     }
 
-    private void Disconnect()
+    public void Disconnect()
     {
         if (isConnected)
         {
@@ -430,9 +480,41 @@ public class Client : MonoBehaviour
             Debug.Log("Disconnected from the Server");
         }
     }
+}
 
-    // TODO put it in another class
-    void DrawLine(Vector3 start, Vector3 end, Color color, float duration = 0.15f)
+
+public class DrawRay
+{
+    static Material lineMat;
+
+    [RuntimeInitializeOnLoadMethod]
+    static void OnRuntimeMethodLoad()
+    {
+        lineMat = Resources.Load<Material>("Materials/Line/LineSprite");
+    }
+
+    public static void DrawLine(Vector2 start, float angle, float length, Color color, float duration = 0.2f)
+    {
+        // angle in radians
+        GameObject myLine = new GameObject();
+        myLine.transform.position = start;
+        myLine.AddComponent<LineRenderer>();
+        LineRenderer lr = myLine.GetComponent<LineRenderer>();
+        lr.material = lineMat;
+        lr.startColor = color;
+        lr.endColor = color;
+        lr.startWidth = 0.05f;
+        lr.endWidth = 0.05f;
+
+        lr.SetPosition(0, start);
+        lr.SetPosition(1, start + (new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * length));
+
+        lr.sortingLayerName = "Debug";
+        GameObject.Destroy(myLine, duration);
+    }
+
+    /*
+    public static void DrawLine(Vector2 start, Vector2 end, Color color, float duration = 0.15f)
     {
         GameObject myLine = new GameObject();
         myLine.transform.position = start;
@@ -443,12 +525,14 @@ public class Client : MonoBehaviour
         lr.endColor = color;
         lr.startWidth = 0.05f;
         lr.endWidth = 0.05f;
+
         lr.SetPosition(0, start);
         lr.SetPosition(1, end);
 
         lr.sortingLayerName = "Debug";
         GameObject.Destroy(myLine, duration);
     }
+    */
 }
 
 
@@ -524,6 +608,8 @@ public class PlayerInputHandler {
         if (Input.GetMouseButtonDown(0))
         {
             mouseDown = true;
+
+            DrawRay.DrawLine(localPlayerTransform.position, zAngle * Mathf.Deg2Rad, 100f, Color.yellow, 1f);
         }
     }
 

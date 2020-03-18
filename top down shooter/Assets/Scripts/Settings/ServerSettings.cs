@@ -3,7 +3,7 @@
 public class ServerSettings : MonoBehaviour
 {
     [SerializeField] [Range(1, 120)]
-    int ticksPerSecond = 10;
+    public static ushort ticksPerSecond = 20;
     void Awake()
     {
         #if UNITY_EDITOR

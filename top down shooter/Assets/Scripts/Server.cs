@@ -303,8 +303,13 @@ public class Server : MonoBehaviour
                     tmp = sock.Accept();
                     usr = new User(tmp);
 
+                    List<byte> welcomePacket = new List<byte>();
+
+                    NetworkUtils.SerializeUshort(welcomePacket, usr.player.playerId);
+                    NetworkUtils.SerializeUshort(welcomePacket, ServerSettings.ticksPerSecond);
+
                     // Send to the connected client his ID.
-                    BeginSend(usr, BitConverter.GetBytes(usr.player.playerId));
+                    BeginSend(usr, welcomePacket.ToArray());
 
                     // Instantiate at the main thread, not here.
                     lock (instantiateJobs)

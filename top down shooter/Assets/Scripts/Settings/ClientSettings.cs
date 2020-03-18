@@ -4,7 +4,7 @@ public class ClientSettings : MonoBehaviour
 {
     [SerializeField] GameObject graphyOverlay; 
 
-    [SerializeField] float ticksPerSecond = 1f;
+    [SerializeField] ushort ticksPerSecond = 1;
 
     [SerializeField] int frameRate = 60;
 
