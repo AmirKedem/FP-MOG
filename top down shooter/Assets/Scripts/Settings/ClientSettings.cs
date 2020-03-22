@@ -4,7 +4,7 @@ public class ClientSettings : MonoBehaviour
 {
     [SerializeField] GameObject graphyOverlay; 
 
-    [SerializeField] ushort ticksPerSecond = 1;
+    [SerializeField] ushort ticksPerSecond = 60;
 
     [SerializeField] int frameRate = 60;
 
@@ -19,10 +19,10 @@ public class ClientSettings : MonoBehaviour
 
         Application.runInBackground = true;
         Application.targetFrameRate = Mathf.Max(frameRate, 1);
-        Physics2D.autoSimulation = true;
 
+        Physics2D.autoSimulation = false;
         Physics2D.gravity = Vector3.zero;
 
-        Time.fixedDeltaTime = 1.0f / ticksPerSecond;
+        Time.fixedDeltaTime = 1.0f / 30.0f;
     }
 }

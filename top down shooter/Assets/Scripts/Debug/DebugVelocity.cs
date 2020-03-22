@@ -12,12 +12,12 @@ public class DebugVelocity : MonoBehaviour
     Vector3 start = Vector3.zero;
     Vector3 end = Vector3.zero;
     // Update is called once per frame
-    void FixedUpdate()
+    void Update()
     {
         playersList = Server.clients.Values.Select(x => x.player).ToList();
         foreach (Player p in playersList)
         {
-            if (p.obj != null && p.rb != null)
+            if (p.playerGameobject != null && p.rb != null)
             {
                 start = p.rb.position;
                 end = start + (Vector3) p.rb.velocity.normalized * 1f;

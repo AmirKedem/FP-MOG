@@ -9,12 +9,14 @@ public class Player
     public ushort playerId;
     public int rtt;
     public GameObject playerContainer;
-    public GameObject obj;
+    public GameObject playerGameobject;
+    public GameObject firePoint;
+    public GameObject impactEffect;
+    public AnimatedTexture muzzelFlash;
     public Rigidbody2D rb;
 
     public List<ServerUserCommand> userCommandList = new List<ServerUserCommand>();
     public List<ServerUserCommand> userCommandBufferList = new List<ServerUserCommand>();
-
 
     public Player()
     {
@@ -31,9 +33,13 @@ public class Player
         playerContainer = go;
         playerContainer.name = "Player " + playerId.ToString();
 
-        obj = playerContainer.transform.Find("Rigidbody").gameObject;
-        rb = obj.GetComponent<Rigidbody2D>();
+        playerGameobject = playerContainer.transform.Find("Rigidbody").gameObject;
+        rb = playerGameobject.GetComponent<Rigidbody2D>();
 
+        firePoint = playerGameobject.transform.Find("FirePoint").gameObject;
+        muzzelFlash = firePoint.transform.Find("MuzzelFlash").GetComponent<AnimatedTexture>();
+
+        impactEffect = Resources.Load<GameObject>("Prefabs/ParticleEffects/ImpactPrefab");
         /*
         // TODO init for client as well and not just for the server for now it has been moved to the server after InitPlayer.
         // Attach the Lag compensation module to the new instantiated player.
@@ -49,14 +55,41 @@ public class Player
 
     public PlayerState GetState()
     {
-        return new PlayerState(playerId, obj.transform.eulerAngles.z, obj.transform.position, rb.velocity);
+        return new PlayerState(playerId, playerGameobject.transform.eulerAngles.z, playerGameobject.transform.position, rb.velocity);
     }
 
     public void FromState(PlayerState ps)
     {
-        obj.transform.position = new Vector2(ps.pos[0], ps.pos[1]);
-        obj.transform.eulerAngles = new Vector3(0, 0, ps.zAngle);
+        playerGameobject.transform.position = new Vector2(ps.pos[0], ps.pos[1]);
+        playerGameobject.transform.eulerAngles = new Vector3(0, 0, ps.zAngle);
         rb.velocity = new Vector2(ps.vel[0], ps.vel[1]);
+    }
+
+    public void FromState(RayState rs)
+    {
+        // Muzzel Flash
+        muzzelFlash.Flash();
+
+        // Cast ray
+        int masks = 0;
+        masks |= (1 << LayerMask.NameToLayer("Player"));
+        masks |= (1 << LayerMask.NameToLayer("Map"));
+        RaycastHit2D hitInfo = Physics2D.Raycast(firePoint.transform.position, firePoint.transform.right, 1000, masks);
+
+        if (hitInfo)
+        {
+            Debug.Log(hitInfo.collider);
+
+            // Particle effect
+            var effect = GameObject.Instantiate(impactEffect, hitInfo.point, Quaternion.identity);
+            GameObject.Destroy(effect, 1);
+
+            DrawRay.DrawLine(firePoint.transform.position, hitInfo.point, Color.red, 0.2f);
+        }
+        else
+        {
+            DrawRay.DrawLine(firePoint.transform.position, rs.zAngle, 100f, Color.red, 0.2f);
+        }
     }
 
     public void CacheClientInput(ClientInput ci)
@@ -102,8 +135,3 @@ public class ServerUserCommand
         return ret;
     }
 } 
-
-
-
-
-

@@ -91,8 +91,6 @@ public class ServerLoop
 
     const float speedFactor = 3f;
 
-    // Body + head distance from the middle of the body
-    const float bodyRadius = 0.5f/2f + 0.3f/2f + 0.01f;
     const int NoMoreEvents = -1;
 
     WorldManager wm;
@@ -278,7 +276,7 @@ public class ServerLoop
 
         float zAngle = Mathf.Repeat(ie.zAngle, 360);
         player.rb.rotation = zAngle;
-        player.obj.transform.rotation = Quaternion.Euler(0, 0, zAngle);
+        player.playerGameobject.transform.rotation = Quaternion.Euler(0, 0, zAngle);
 
         ApplyMovement(player, ie);
 
@@ -320,25 +318,25 @@ public class ServerLoop
         if (player.playerContainer == null)
             return;
 
-        Debug.Log("Player " + player.playerId + " Fire");
-        Vector2 pos = player.rb.position;
+        // Debug.Log("Player " + player.playerId + " Fire");
+        Vector2 firePoint = player.firePoint.transform.position;
 
         float zAngle = player.rb.rotation * Mathf.Deg2Rad;
         Vector2 headingDir = new Vector2(Mathf.Cos(zAngle), Mathf.Sin(zAngle));
 
-        RayState newRay = new RayState(player.playerId, zAngle, pos);
+        RayState newRay = new RayState(player.playerId, zAngle, firePoint);
         rayStates.Add(newRay);
 
-        Debug.Log("Was answer for tick: " + tickAck);
-        Debug.Log("But last tick was: " + (NetworkTick.tickSeq - 1));
-        Debug.DrawRay(pos, headingDir * 100f);
+        // Debug.Log("Was answer for tick: " + tickAck);
+        // Debug.Log("But last tick was: " + (NetworkTick.tickSeq - 1));
+        Debug.DrawRay(firePoint, headingDir * 100f);
 
         // Cast a ray straight down.
         //RaycastHit2D[] ray = Physics2D.RaycastAll(pos + headingDir * bodyRadius, headingDir);
         int masks = 0;
         masks |= (1 << LayerMask.NameToLayer("Player"));
         masks |= (1 << LayerMask.NameToLayer("Map"));
-        RaycastHit2D hit = Physics2D.Raycast(pos + headingDir * bodyRadius, headingDir, 1000, masks);
+        RaycastHit2D hit = Physics2D.Raycast(firePoint, headingDir, 1000, masks);
 
         // Calculate the distance from the surface
         // float distance = Vector2.Distance(pos, hit.point);

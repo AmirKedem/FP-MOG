@@ -16,13 +16,15 @@ public class BuildWindow : EditorWindow
     List<string> scenesPaths = new List<string>()
     {
         "Scenes/MS/MapMS",
+        "Scenes/MS/AIMS",
         "Scenes/MS/ClientMS",
         "Scenes/MS/ServerMS",
     };
-        
+
     public enum GameLoopMode
     {
         Server,
+        AI,
         Client,
         Undefined,
     }
@@ -30,6 +32,7 @@ public class BuildWindow : EditorWindow
     public enum EditorRole
     {
         Unused,
+        AI,
         Client,
         Server,
     }
@@ -117,6 +120,7 @@ public class BuildWindow : EditorWindow
         GUILayout.Label("Build times:");
         string serverStr = PrettyPrintTimeStamp(TimeLastBuildGame(GameLoopMode.Server));
         string clientStr = PrettyPrintTimeStamp(TimeLastBuildGame(GameLoopMode.Client));
+        string aiStr = PrettyPrintTimeStamp(TimeLastBuildGame(GameLoopMode.AI));
 
         GUILayout.BeginHorizontal();
         {
@@ -131,6 +135,14 @@ public class BuildWindow : EditorWindow
             GUILayout.Space(20);
             GUILayout.Label("- Build Time Client", GUILayout.Width(130));
             EditorGUILayout.SelectableLabel(clientStr, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+        }
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+        {
+            GUILayout.Space(20);
+            GUILayout.Label("- Build Time AI Client", GUILayout.Width(130));
+            EditorGUILayout.SelectableLabel(aiStr, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
         }
         GUILayout.EndHorizontal();
 
@@ -151,12 +163,14 @@ public class BuildWindow : EditorWindow
         {
             BuildServer();
             BuildClient();
+            BuildAI();
             GUIUtility.ExitGUI();
         }
 
         GUILayout.EndHorizontal();
         GUILayout.EndHorizontal();
 
+        // Build AI Server 
         GUILayout.BeginHorizontal();
         GUILayout.Label("Build Server", GUILayout.ExpandWidth(true));
         GUILayout.BeginHorizontal(GUILayout.Width(100));
@@ -169,12 +183,26 @@ public class BuildWindow : EditorWindow
         GUILayout.EndHorizontal();
         GUILayout.EndHorizontal();
 
+        // Build Client
         GUILayout.BeginHorizontal();
         GUILayout.Label("Build Client", GUILayout.ExpandWidth(true));
         GUILayout.BeginHorizontal(GUILayout.Width(100));
         if (GUILayout.Button("Build"))
         {
             BuildClient();
+            GUIUtility.ExitGUI();
+        }
+
+        GUILayout.EndHorizontal();
+        GUILayout.EndHorizontal();
+
+        // Build AI Client
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("Build AI Client", GUILayout.ExpandWidth(true));
+        GUILayout.BeginHorizontal(GUILayout.Width(100));
+        if (GUILayout.Button("Build"))
+        {
+            BuildAI();
             GUIUtility.ExitGUI();
         }
 
@@ -193,6 +221,8 @@ public class BuildWindow : EditorWindow
         GUILayout.Label("Switch Scene - Map", GUILayout.ExpandWidth(true));
         GUILayout.BeginHorizontal();
 
+
+        
         // The order of the scenes is by the order of the strings in scenesPaths.
         EditorGUILayout.BeginVertical();
         if (GUILayout.Button("Preview", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
@@ -203,11 +233,25 @@ public class BuildWindow : EditorWindow
             }
         }
 
+        if (GUILayout.Button("AI Client", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
+        {
+            foreach (var i in scenes)
+            {
+                Debug.Log(i);
+
+            }
+
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                EditorSceneManager.RestoreSceneManagerSetup(scenes[1].ToSceneSetups());
+            }
+        }
+
         if (GUILayout.Button("Client", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
-                EditorSceneManager.RestoreSceneManagerSetup(scenes[1].ToSceneSetups());
+                EditorSceneManager.RestoreSceneManagerSetup(scenes[2].ToSceneSetups());
             }
         }
 
@@ -215,7 +259,7 @@ public class BuildWindow : EditorWindow
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
-                EditorSceneManager.RestoreSceneManagerSetup(scenes[2].ToSceneSetups());
+                EditorSceneManager.RestoreSceneManagerSetup(scenes[3].ToSceneSetups());
             }
         }
         EditorGUILayout.EndVertical();
@@ -343,6 +387,23 @@ public class BuildWindow : EditorWindow
         PlayerSettings.productName = origianl;
     }
 
+    public static void BuildAI()
+    {
+        string origianl = PlayerSettings.productName;
+        string sceneFolder = "Assets/Resources/Scenes";
+        PlayerSettings.productName = "AI Client";
+        BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
+        {
+            scenes = new[] { sceneFolder + "/AIClient.unity"},
+            locationPathName = GetBuildPath() + "/AI/AI.exe",
+            target = BuildTarget.StandaloneWindows64,
+            options = BuildOptions.EnableHeadlessMode
+        };
+        BuildPipeline.BuildPlayer(buildPlayerOptions);
+        Debug.Log("AI Client Build successful");
+        PlayerSettings.productName = origianl;
+    }
+
     static void StopAll()
     {
         KillAllProcesses();
@@ -351,47 +412,31 @@ public class BuildWindow : EditorWindow
 
     static void KillAllProcesses()
     {
-        var buildExe = GetBuildExe(GameLoopMode.Server);
-
-        var processName = Path.GetFileNameWithoutExtension(buildExe);
-        var processes = System.Diagnostics.Process.GetProcesses();
-        foreach (var process in processes)
+        foreach (var loopMode in Enum.GetValues(typeof(GameLoopMode)))
         {
-            if (process.HasExited)
+            if (loopMode.Equals(GameLoopMode.Undefined))
                 continue;
 
-            try
+            var buildExe = GetBuildExe(GameLoopMode.Server);
+
+            var processName = Path.GetFileNameWithoutExtension(buildExe);
+            var processes = System.Diagnostics.Process.GetProcesses();
+            foreach (var process in processes)
             {
-                if (process.ProcessName != null && process.ProcessName == processName)
+                if (process.HasExited)
+                    continue;
+
+                try
                 {
-                    process.Kill();
+                    if (process.ProcessName != null && process.ProcessName == processName)
+                    {
+                        process.Kill();
+                    }
                 }
-            }
-            catch (InvalidOperationException)
-            {
-
-            }
-        }
-
-        buildExe = GetBuildExe(GameLoopMode.Client);
-
-        processName = Path.GetFileNameWithoutExtension(buildExe);
-        processes = System.Diagnostics.Process.GetProcesses();
-        foreach (var process in processes)
-        {
-            if (process.HasExited)
-                continue;
-
-            try
-            {
-                if (process.ProcessName != null && process.ProcessName == processName)
+                catch (InvalidOperationException)
                 {
-                    process.Kill();
-                }
-            }
-            catch (InvalidOperationException)
-            {
 
+                }
             }
         }
     }
@@ -407,6 +452,8 @@ public class BuildWindow : EditorWindow
             return "Server/Server.exe";
         else if (mode == GameLoopMode.Client)
             return "Client/Client.exe";
+        else if (mode == GameLoopMode.AI)
+            return "AI/AI.exe";
         else
             return "";
     }
@@ -441,6 +488,8 @@ public class BuildWindow : EditorWindow
             buildPath += "/Server";
         else if (mode == GameLoopMode.Client)
             buildPath += "/Client";
+        else if (mode == GameLoopMode.AI)
+            buildPath += "/AI";
 
         return Directory.GetLastWriteTime(buildPath);
     }

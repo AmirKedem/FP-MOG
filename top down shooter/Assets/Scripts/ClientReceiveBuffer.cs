@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class ClientReceiveBuffer : MyStopWatch
@@ -97,9 +98,15 @@ public class ClientReceiveBuffer : MyStopWatch
             //Debug.Log("index of prev state: " + (snapshotBuffer.Count - 2 - snapshotGap));
             //Debug.Log("index of next state: " + (snapshotBuffer.Count - 1 - snapshotGap));
 
-            prevState = snapshotBuffer[snapshotBuffer.Count - 2 - snapshotGap];
-            nextState = snapshotBuffer[snapshotBuffer.Count - 1 - snapshotGap];
-
+            try
+            {
+                prevState = snapshotBuffer[snapshotBuffer.Count - 2 - snapshotGap];
+                nextState = snapshotBuffer[snapshotBuffer.Count - 1 - snapshotGap];
+            } 
+            catch
+            {
+                return GetFirst();
+            }
             //Debug.Log("latest State: " + snapshotBuffer[snapshotBuffer.Count - 1].serverTickSeq + " prevState: " + prevState.serverTickSeq + " nextState: " + nextState.serverTickSeq);
 
         }
@@ -108,7 +115,13 @@ public class ClientReceiveBuffer : MyStopWatch
 
         time += Time.deltaTime * 1000f;
 
-        return Tuple.Create(playerStates, prevState.raysState);
+        // Since we might render the same tick twice (depends on the ratio between server tick rate and client tick rate)
+        // after using the raystates which are a one-off action so they happen only once therefore we take the rayStates and then clear the field
+        // so when we get to the same frame again we don't reder the same rayStates.
+        var rayStates = prevState.raysState.ToList();
+        prevState.raysState.Clear();
+
+        return Tuple.Create(playerStates, rayStates);
     }
     
     public Tuple<List<PlayerState>, List<RayState>> GetLast()
@@ -116,7 +129,8 @@ public class ClientReceiveBuffer : MyStopWatch
         lock (snapshotBuffer)
         {
             var snapshot = snapshotBuffer[snapshotBuffer.Count - 1];
-            return Tuple.Create(snapshot.playersState, snapshot.raysState);
+
+            return GetTupleFromSnapshot(snapshot);
         }
     }
 
@@ -125,8 +139,24 @@ public class ClientReceiveBuffer : MyStopWatch
         lock (snapshotBuffer)
         {
             var snapshot = snapshotBuffer[snapshotBuffer.HeadIndex];
-            return Tuple.Create(snapshot.playersState, snapshot.raysState);
+
+            return GetTupleFromSnapshot(snapshot);
         }
+    }
+
+    private static Tuple<List<PlayerState>, List<RayState>> GetTupleFromSnapshot(WorldState snapshot)
+    {
+        // Since we might render the same tick twice (depends on the ratio between server tick rate and client tick rate)
+        // after using a snapshot we clear it and remove its content.
+        var rayStates = snapshot.raysState.ToList();
+        snapshot.raysState.Clear();
+
+        //var playerStates = snapshot.playersState.ToList();
+        //snapshot.playersState.Clear();
+        // Returns a tuple that contains List of playerState and a List of rayState
+        // that tuple is then used in the reder snapshot function
+        //return Tuple.Create(playerStates, rayStates);
+        return Tuple.Create(snapshot.playersState, rayStates);
     }
 
     public void Reset()

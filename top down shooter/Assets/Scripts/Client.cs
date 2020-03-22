@@ -4,7 +4,6 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-using UnityEditor;
 using UnityEngine;
 
 
@@ -123,6 +122,7 @@ public class ClientReceiveMessage
 
 public class Client : MonoBehaviour
 {
+    [Header("Netcode Toggles")]
     [SerializeField]
     bool interpolationFlag = true;
     [SerializeField]
@@ -135,11 +135,15 @@ public class Client : MonoBehaviour
 
     bool lagcompensationFlag = true;
 
+    [Header("Main Camera (just for debug)")]
     [SerializeField] private Camera cam;
+
+    [Header("Local player GameObject")]
     [SerializeField] private GameObject playerPrefab;
     [SerializeField] private GameObject playerLocalContainer;
     [SerializeField] private GameObject playerLocalRigidbody;
 
+    [Header("Local player GameObject")]
     [SerializeField] private GameObject networkStatePanel;
     [SerializeField] private GameObject networkErrorMessage;
 
@@ -382,7 +386,7 @@ public class Client : MonoBehaviour
             else
             {
                 Player tmpP = new Player(ps.playerId);
-                tmpP.InitPlayer(GameObject.Instantiate(playerPrefab, Vector3.zero, Quaternion.identity));
+                tmpP.InitPlayer(Instantiate(playerPrefab, Vector3.zero, Quaternion.identity));
 
                 tmpP.FromState(ps);
                 PlayerFromId.Add(ps.playerId, tmpP);
@@ -391,7 +395,9 @@ public class Client : MonoBehaviour
 
         foreach (RayState rs in rayStates)
         {
-            DrawRay.DrawLine(rs.pos, rs.zAngle, 100f, Color.red, 0.5f);
+            PlayerFromId[rs.owner].FromState(rs);
+            // Debug
+            // DrawRay.DrawLine(rs.pos, rs.zAngle, 100f, Color.red, 0.5f);
         }
 
         // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
@@ -401,7 +407,7 @@ public class Client : MonoBehaviour
             {
                 Application.Quit();
             }
-            Destroy(PlayerFromId[playerId].obj);
+            Destroy(PlayerFromId[playerId].playerGameobject);
             PlayerFromId.Remove(playerId);
         }
     }
@@ -438,7 +444,7 @@ public class Client : MonoBehaviour
             if (received)
             {
                 // Take the local player (Player prefab) and use it.
-                Player tmpP = new Player((ushort)myId);
+                Player tmpP = new Player((ushort) myId);
                 tmpP.InitPlayer(playerLocalContainer);
                 // Add myself to the list of players.
                 PlayerFromId.Add(myId, tmpP);
@@ -512,8 +518,7 @@ public class DrawRay
         lr.sortingLayerName = "Debug";
         GameObject.Destroy(myLine, duration);
     }
-
-    /*
+    
     public static void DrawLine(Vector2 start, Vector2 end, Color color, float duration = 0.15f)
     {
         GameObject myLine = new GameObject();
@@ -532,7 +537,6 @@ public class DrawRay
         lr.sortingLayerName = "Debug";
         GameObject.Destroy(myLine, duration);
     }
-    */
 }
 
 
@@ -608,10 +612,11 @@ public class PlayerInputHandler {
         if (Input.GetMouseButtonDown(0))
         {
             mouseDown = true;
-
-            DrawRay.DrawLine(localPlayerTransform.position, zAngle * Mathf.Deg2Rad, 100f, Color.yellow, 1f);
+            // Debug
+            // DrawRay.DrawLine(localPlayerTransform.position, zAngle * Mathf.Deg2Rad, 100f, Color.yellow, 1f);
         }
     }
+
 
     private void SetMouseDir()
     {

@@ -9,6 +9,7 @@ public class BuildUtils : EditorWindow
     public enum GameLoopMode
     {
         Server,
+        AI,
         Client,
         Undefined,
     }
@@ -16,6 +17,7 @@ public class BuildUtils : EditorWindow
     public enum EditorRole
     {
         Unused,
+        AI,
         Client,
         Server,
     }
@@ -28,47 +30,32 @@ public class BuildUtils : EditorWindow
 
     public static void KillAllProcesses()
     {
-        var buildExe = GetBuildExe(GameLoopMode.Server);
-
-        var processName = Path.GetFileNameWithoutExtension(buildExe);
-        var processes = System.Diagnostics.Process.GetProcesses();
-        foreach (var process in processes)
+        foreach (GameLoopMode loopMode in Enum.GetValues(typeof(GameLoopMode)))
         {
-            if (process.HasExited)
+            if (loopMode.Equals(GameLoopMode.Undefined))
                 continue;
 
-            try
+            var buildExe = GetBuildExe(loopMode);
+
+            var processName = Path.GetFileNameWithoutExtension(buildExe);
+            var processes = System.Diagnostics.Process.GetProcesses();
+
+            foreach (var process in processes)
             {
-                if (process.ProcessName != null && process.ProcessName == processName)
+                if (process.HasExited)
+                    continue;
+
+                try
                 {
-                    process.Kill();
+                    if (process.ProcessName != null && process.ProcessName == processName)
+                    {
+                        process.Kill();
+                    }
                 }
-            }
-            catch (InvalidOperationException)
-            {
-
-            }
-        }
-
-        buildExe = GetBuildExe(GameLoopMode.Client);
-
-        processName = Path.GetFileNameWithoutExtension(buildExe);
-        processes = System.Diagnostics.Process.GetProcesses();
-        foreach (var process in processes)
-        {
-            if (process.HasExited)
-                continue;
-
-            try
-            {
-                if (process.ProcessName != null && process.ProcessName == processName)
+                catch (InvalidOperationException)
                 {
-                    process.Kill();
-                }
-            }
-            catch (InvalidOperationException)
-            {
 
+                }
             }
         }
     }
@@ -84,6 +71,8 @@ public class BuildUtils : EditorWindow
             return "Server/Server.exe";
         else if (mode == GameLoopMode.Client)
             return "Client/Client.exe";
+        else if (mode == GameLoopMode.AI)
+            return "AI/AI.exe";
         else
             return "";
     }

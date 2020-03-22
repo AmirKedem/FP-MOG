@@ -20,7 +20,7 @@ public class WorldManager
 
         foreach (Player p in players)
         {
-            if (p.obj != null)
+            if (p.playerGameobject != null)
                 snapshot.AddState(p.GetState());
         }
 
