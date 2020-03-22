@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 public class ServerSettings : MonoBehaviour
 {
@@ -16,7 +17,7 @@ public class ServerSettings : MonoBehaviour
         Physics2D.autoSimulation = false;
         Physics2D.gravity = Vector3.zero;
 
-        Debug.Log("Tick Rate: " + (ticksPerSecond) + " [Hz], Tick Duration: " + (1000f / ticksPerSecond) + "[ms]");
+        Console.WriteLine("Tick Rate: " + (ticksPerSecond) + " [Hz], Tick Duration: " + (1000f / ticksPerSecond) + "[ms]");
     }
 
     private void Update()

@@ -157,7 +157,11 @@ public class ServerLoop
                 p.playerContainer.GetComponent<LagCompensationModule>().TakeSnapshot(NetworkTick.tickSeq - 1);
 
                 playerEventIndexes.Add(0);
-                p.MergeWithBuffer();
+
+                if (p != null)
+                {
+                    p.MergeWithBuffer();
+                }
             } 
             else
             {

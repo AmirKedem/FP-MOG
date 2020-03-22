@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -103,10 +104,18 @@ public class Player
         {
             lock (userCommandBufferList)
             {
+                // TODO work out why some User Commands are null 
+                // it works for now tho
+                for (int i = userCommandBufferList.Count - 1; i >= 0; i--)
+                {
+                    if (userCommandBufferList[i] == null)
+                        userCommandBufferList.RemoveAt(i);
+                }
+
                 userCommandList.AddRange(userCommandBufferList);
                 userCommandBufferList.Clear();
             }
-
+            
             userCommandList.Sort((a, b) => a.serverRecTime.CompareTo(b.serverRecTime));
         }
     }

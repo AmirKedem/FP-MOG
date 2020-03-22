@@ -412,12 +412,12 @@ public class BuildWindow : EditorWindow
 
     static void KillAllProcesses()
     {
-        foreach (var loopMode in Enum.GetValues(typeof(GameLoopMode)))
+        foreach (GameLoopMode loopMode in Enum.GetValues(typeof(GameLoopMode)))
         {
             if (loopMode.Equals(GameLoopMode.Undefined))
                 continue;
 
-            var buildExe = GetBuildExe(GameLoopMode.Server);
+            var buildExe = GetBuildExe(loopMode);
 
             var processName = Path.GetFileNameWithoutExtension(buildExe);
             var processes = System.Diagnostics.Process.GetProcesses();
