@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+using Random = UnityEngine.Random;
 
 public class Player
 {
@@ -79,17 +79,16 @@ public class Player
 
         if (hitInfo)
         {
-            Debug.Log(hitInfo.collider);
-
             // Particle effect
-            var effect = GameObject.Instantiate(impactEffect, hitInfo.point, Quaternion.identity);
-            GameObject.Destroy(effect, 1);
+            var rotation = Quaternion.Euler(0, 0, Random.Range(0.0f, 360.0f));
+            var effect = GameObject.Instantiate(impactEffect, hitInfo.point, rotation);
+            GameObject.Destroy(effect, 100);
 
-            DrawRay.DrawLine(firePoint.transform.position, hitInfo.point, Color.red, 0.2f);
+            DrawRay.DrawLine(firePoint.transform.position, hitInfo.point, Color.red, 0.05f);
         }
         else
         {
-            DrawRay.DrawLine(firePoint.transform.position, rs.zAngle, 100f, Color.red, 0.2f);
+            DrawRay.DrawLine(firePoint.transform.position, rs.zAngle, 100f, Color.red, 0.05f);
         }
     }
 

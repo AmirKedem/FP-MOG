@@ -6,6 +6,7 @@ public class AnimatedTexture : MonoBehaviour
     public float fps = 20.0f;
     public Texture2D[] frames;
 
+    private Coroutine co;
     private MeshRenderer rendererMy;
 
     void Awake()
@@ -15,7 +16,9 @@ public class AnimatedTexture : MonoBehaviour
 
     public void Flash()
     {
-        StartCoroutine(StartFlash());
+        if (co != null)
+            StopCoroutine(co);
+        co = StartCoroutine(StartFlash());
     }
 
     IEnumerator StartFlash()
@@ -27,7 +30,7 @@ public class AnimatedTexture : MonoBehaviour
             rendererMy.sharedMaterial.SetTexture("_MainTex", frames[i]);
             yield return new WaitForSeconds(1 / fps);
         }
-
+        
         rendererMy.enabled = false;
     }
 }
