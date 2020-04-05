@@ -4,7 +4,7 @@ using UnityEngine;
 public class ServerSettings : MonoBehaviour
 {
     [SerializeField] [Range(1, 120)]
-    public static ushort ticksPerSecond = 25;
+    public static ushort ticksPerSecond = 60;
 
     void Awake()
     {
@@ -17,6 +17,7 @@ public class ServerSettings : MonoBehaviour
         Physics2D.autoSimulation = false;
         Physics2D.gravity = Vector3.zero;
 
+        Console.WriteLine("\nServer log: ");
         Console.WriteLine("Tick Rate: " + (ticksPerSecond) + " [Hz], Tick Duration: " + (1000f / ticksPerSecond) + "[ms]");
     }
 

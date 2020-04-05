@@ -25,4 +25,14 @@ public class ClientInfo : MonoBehaviour
 
         remoteEP = new IPEndPoint(ipAddress, port);
     }
+
+    public static IPAddress GetIPAddress()
+    {
+        return ipAddress;
+    }
+
+    public static IPEndPoint GetRemoteEP()
+    {
+        return remoteEP;
+    }
 }

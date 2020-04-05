@@ -58,7 +58,7 @@ public class AIClient : MonoBehaviour
 
         try
         {
-            if (clientSock != null)
+            if (clientSock != null && clientSock.Connected)
             {
                 // Begin sending the data to the remote device.  
                 clientSock.BeginSend(byteData, 0, byteData.Length, 0,
@@ -118,8 +118,7 @@ public class AIClient : MonoBehaviour
 
         UnityThread.initUnityThread();
 
-        Thread thr = new Thread(new ThreadStart(InitializeNetworking));
-        thr.Start();
+        InitializeNetworking();
     }
 
     private void ClientTick()

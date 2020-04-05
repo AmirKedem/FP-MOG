@@ -4,14 +4,21 @@ using System.Collections.Generic;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
-public class Player
+public class Player : MonoBehaviour
 {
-    static ushort playerIdCount = 0;
+    // Player entity game variables
+    [Header("Game variables")]
+    [SerializeField] float speedFactor = 3f;
+    [SerializeField] float rotationSpeed = 1f;
+
+    // Player network and setup
+    [Header("Network variables")]
     public ushort playerId;
     public int rtt;
     public GameObject playerContainer;
     public GameObject playerGameobject;
-    public GameObject firePoint;
+    public GameObject tankTurretGO;
+    public GameObject firePointGO;
     public GameObject impactEffect;
     public AnimatedTexture muzzelFlash;
     public Rigidbody2D rb;
@@ -19,39 +26,10 @@ public class Player
     public List<ServerUserCommand> userCommandList = new List<ServerUserCommand>();
     public List<ServerUserCommand> userCommandBufferList = new List<ServerUserCommand>();
 
-    public Player()
-    {
-        playerId = GetPlayerId();
-    }
-
-    public Player(ushort id)
+    public void SetPlayerID(ushort id)
     {
         playerId = id;
-    }
-
-    public void InitPlayer(GameObject go)
-    {
-        playerContainer = go;
-        playerContainer.name = "Player " + playerId.ToString();
-
-        playerGameobject = playerContainer.transform.Find("Rigidbody").gameObject;
-        rb = playerGameobject.GetComponent<Rigidbody2D>();
-
-        firePoint = playerGameobject.transform.Find("FirePoint").gameObject;
-        muzzelFlash = firePoint.transform.Find("MuzzelFlash").GetComponent<AnimatedTexture>();
-
-        impactEffect = Resources.Load<GameObject>("Prefabs/ParticleEffects/ImpactPrefab");
-        /*
-        // TODO init for client as well and not just for the server for now it has been moved to the server after InitPlayer.
-        // Attach the Lag compensation module to the new instantiated player.
-        playerContainer.AddComponent<LagCompensationModule>().Init(this);
-        */
-    }
-
-    public static ushort GetPlayerId()
-    {
-        playerIdCount++;
-        return playerIdCount;
+        playerContainer.name = "Player ID " + playerId;
     }
 
     public PlayerState GetState()
@@ -75,26 +53,76 @@ public class Player
         int masks = 0;
         masks |= (1 << LayerMask.NameToLayer("Player"));
         masks |= (1 << LayerMask.NameToLayer("Map"));
-        RaycastHit2D hitInfo = Physics2D.Raycast(firePoint.transform.position, firePoint.transform.right, 1000, masks);
+        //RaycastHit2D hitInfo = Physics2D.Raycast(firePoint.transform.position, firePoint.transform.right, 1000, masks);
+
+        var fireDir = new Vector2(Mathf.Cos(rs.zAngle), Mathf.Sin(rs.zAngle));
+
+        Debug.DrawRay(rs.pos, fireDir, Color.black, 10);
+        RaycastHit2D hitInfo = Physics2D.Raycast(rs.pos, fireDir, 1000, masks);
 
         if (hitInfo)
         {
+            Debug.Log(hitInfo.collider.gameObject);
+            try
+            {
+                Debug.Log(hitInfo.collider.gameObject.transform.parent.parent.name);
+            }
+            catch { }
+
             // Particle effect
             var rotation = Quaternion.Euler(0, 0, Random.Range(0.0f, 360.0f));
             var effect = GameObject.Instantiate(impactEffect, hitInfo.point, rotation);
-            GameObject.Destroy(effect, 100);
+            GameObject.Destroy(effect, 1);
 
-            DrawRay.DrawLine(firePoint.transform.position, hitInfo.point, Color.red, 0.05f);
+            //DrawRay.DrawLine(firePoint.transform.position, hitInfo.point, Color.red, 0.05f);
+            DrawRay.DrawLine(rs.pos, hitInfo.point, Color.red, 1f);
         }
         else
         {
-            DrawRay.DrawLine(firePoint.transform.position, rs.zAngle, 100f, Color.red, 0.05f);
+            //DrawRay.DrawLine(firePoint.transform.position, rs.zAngle, 100f, Color.red, 0.05f);
+            DrawRay.DrawLine(rs.pos, rs.zAngle, 100f, Color.red, 1f);
         }
+    }
+
+    public Vector2 RotateVector(Vector2 v, float radian)
+    {
+        float _x = v.x * Mathf.Cos(radian) - v.y * Mathf.Sin(radian);
+        float _y = v.x * Mathf.Sin(radian) + v.y * Mathf.Cos(radian);
+        return new Vector2(_x, _y);
+    }
+
+    public void ApplyUserCommand(InputEvent ie)
+    {
+        float zAngle = Mathf.Repeat(ie.zAngle, 360);
+        rb.rotation = zAngle;
+        playerGameobject.transform.rotation = Quaternion.Euler(0, 0, zAngle);
+
+        //float zAngleRad = (rb.rotation - 90) * Mathf.Deg2Rad;
+
+        byte keys = ie.keys;
+        int x = (int)((keys >> 3) & 1) - (int)((keys >> 1) & 1);
+        int y = (int)((keys >> 0) & 1) - (int)((keys >> 2) & 1);
+
+        // Scale the vector by the speed factor.
+        Vector2 movement = new Vector2(x, y).normalized * speedFactor;
+
+        // forward is always towards heading direction.
+        // movement = RotateVector(movement, zAngleRad);
+
+        rb.velocity = movement;
     }
 
     public void CacheClientInput(ClientInput ci)
     {
         userCommandBufferList.AddRange(ServerUserCommand.CreaetUserCommands(this, ci));
+
+        foreach (var i in userCommandBufferList)
+        {
+            if (i == null)
+            {
+                Debug.Log("Major Bug Detected Here");
+            }
+        }
     }
 
     public void MergeWithBuffer()
@@ -137,8 +165,21 @@ public class ServerUserCommand
     {
         List<ServerUserCommand> ret = new List<ServerUserCommand>();
         float currTime = StopWacthTime.Time;
+
+        Debug.Log(ci.inputEvents.Count);
+        Debug.Log(currTime);
         foreach (InputEvent ie in ci.inputEvents)
-            ret.Add(new ServerUserCommand(player, currTime + ie.deltaTime, ie));
+        {
+            var cmd = new ServerUserCommand(player, currTime + ie.deltaTime, ie);
+            Debug.Log(currTime);
+            Debug.Log(ie.deltaTime);
+            if (cmd == null)
+            {
+                Debug.Log("Major Bug Detected Here");
+            }
+            
+            ret.Add(cmd);
+        }
 
         return ret;
     }

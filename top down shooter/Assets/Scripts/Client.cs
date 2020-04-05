@@ -53,7 +53,7 @@ public class ClientReceiveMessage
         this.client = client;
         this.clientSock = clientSock;
     }
-
+    
     public Byte[] ReceiveOnce()
     {
         /*
@@ -133,8 +133,6 @@ public class Client : MonoBehaviour
     [SerializeField]
     ToggleController predictionToggle;
 
-    bool lagcompensationFlag = true;
-
     [Header("Main Camera (just for debug)")]
     [SerializeField] private Camera cam;
 
@@ -158,7 +156,8 @@ public class Client : MonoBehaviour
     public static PlayerInputHandler playerInputHandler;
     public static Statistics statisticsModule;
 
-    private static int myId;
+    private static ushort myID;
+    private static ushort ticksPerSecond;
     private static bool received = false;
     public static Dictionary<int, Player> PlayerFromId = new Dictionary<int, Player>();
     public static HashSet<int> DisconnectedPlayersIds = new HashSet<int>();
@@ -172,7 +171,9 @@ public class Client : MonoBehaviour
     public void FlipInterpolationFlag()
     {
         interpolationFlag = !interpolationFlag;
-        snapshotReceiveBuffer.Reset();
+        if (snapshotReceiveBuffer != null)        
+            snapshotReceiveBuffer.Reset();
+        
     }
 
     public void FlipPredictionFlag()
@@ -246,7 +247,7 @@ public class Client : MonoBehaviour
 
         try
         {
-            if (clientSock != null)
+            if (clientSock != null && clientSock.Connected)
             {
                 // Begin sending the data to the remote device.  
                 clientSock.BeginSend(byteData, 0, byteData.Length, 0,
@@ -283,14 +284,36 @@ public class Client : MonoBehaviour
 
         // Receive the welcome packet first to initialize some variables
         data = clientReceiveMessage.ReceiveOnce();
-        ProcessWelcomeMessage(data);
-
+        try
+        {
+            ProcessWelcomeMessage(data);
+        } 
+        catch
+        {
+            Debug.Log("The room is full");
+            Disconnect();
+#if UNITY_EDITOR
+            return;
+#endif
+        }
         // Each iteration processes one message at a time.
         // or in other words one world state or a snapshot.
         while (true)
         {
+            // If we disconnected we close this thread by cheking if we are no longer should be Connected
+            if (!isConnected)
+                return;
+
             data = clientReceiveMessage.ReceiveOnce();
-            ProcessWorldStateMessage(data);
+
+            try
+            {
+                ProcessWorldStateMessage(data);
+            } 
+            catch
+            {
+                Debug.Log("Serialization Problem");
+            }
         }
     }
 
@@ -298,14 +321,12 @@ public class Client : MonoBehaviour
     {
         // Connection Message
         // Here we get our own ID.
-        int dataOffset = 0;
+        WelcomeMessage.Deserialize(data, out myID, out ticksPerSecond);
 
-        myId = NetworkUtils.DeserializeUshort(data, ref dataOffset);
-        var ticksPerSecond = NetworkUtils.DeserializeUshort(data, ref dataOffset);
-
+        // Create the buffer on recipt with the static server send rate.
         snapshotReceiveBuffer = new ClientReceiveBuffer(ticksPerSecond);
 
-        Debug.Log("My ID Is: " + myId);
+        Debug.Log("My ID Is: " + myID);
         Debug.Log("Server Send Rate: " + ticksPerSecond);
 
         Debug.Log("Logged In.");
@@ -365,8 +386,7 @@ public class Client : MonoBehaviour
 
         UnityThread.initUnityThread();
 
-        Thread thr = new Thread(new ThreadStart(InitializeNetworking));
-        thr.Start();
+        InitializeNetworking();
     }
 
     private void RenderServerTick(List<PlayerState> playerStates, List<RayState> rayStates)
@@ -385,11 +405,12 @@ public class Client : MonoBehaviour
             }
             else
             {
-                Player tmpP = new Player(ps.playerId);
-                tmpP.InitPlayer(Instantiate(playerPrefab, Vector3.zero, Quaternion.identity));
+                var obj = Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
+                var tmpPlayer = obj.GetComponent<Player>();
+                tmpPlayer.SetPlayerID(ps.playerId);
 
-                tmpP.FromState(ps);
-                PlayerFromId.Add(ps.playerId, tmpP);
+                tmpPlayer.FromState(ps);
+                PlayerFromId.Add(ps.playerId, tmpPlayer);
             }
         }
 
@@ -403,7 +424,7 @@ public class Client : MonoBehaviour
         // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
         foreach (int playerId in DisconnectedPlayersIds)
         {
-            if (playerId == myId)
+            if (playerId == myID)
             {
                 Application.Quit();
             }
@@ -439,15 +460,16 @@ public class Client : MonoBehaviour
         playerInputHandler.AddInputEvent(statisticsModule.tickAck, PacketStartTime.Time);
 
         // Here we deal with the networking part
-        if (!PlayerFromId.ContainsKey(myId))
+        if (!PlayerFromId.ContainsKey(myID))
         {
             if (received)
             {
                 // Take the local player (Player prefab) and use it.
-                Player tmpP = new Player((ushort) myId);
-                tmpP.InitPlayer(playerLocalContainer);
+                var tmpPlayer = playerLocalContainer.GetComponent<Player>();
+                tmpPlayer.SetPlayerID((ushort)myID);
+
                 // Add myself to the list of players.
-                PlayerFromId.Add(myId, tmpP);
+                PlayerFromId.Add(myID, tmpPlayer);
                 Debug.Log("Logged in Setup complete");
             }
         }
@@ -613,7 +635,7 @@ public class PlayerInputHandler {
         {
             mouseDown = true;
             // Debug
-            // DrawRay.DrawLine(localPlayerTransform.position, zAngle * Mathf.Deg2Rad, 100f, Color.yellow, 1f);
+            DrawRay.DrawLine(localPlayerTransform.position, zAngle * Mathf.Deg2Rad, 100f, Color.yellow, 1f);
         }
     }
 

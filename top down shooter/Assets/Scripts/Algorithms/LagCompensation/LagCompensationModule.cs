@@ -24,7 +24,7 @@ public class LagCompensationModule : MonoBehaviour
         lagCompensationMask |= (1 << LayerMask.NameToLayer("Map"));
 
         tickLength = Time.deltaTime * 1000; // In milliseconds
-        int bufferLength = Mathf.FloorToInt(bufferLengthInMS / tickLength);
+        int bufferLength = Mathf.CeilToInt(bufferLengthInMS / tickLength);
         backtrackObj = new BacktrackBuffer(bufferLength, attachedPlayer, copyPrefab);
     }
 
@@ -46,7 +46,7 @@ public class LagCompensationModule : MonoBehaviour
         
         float zAngle = attachedPlayer.rb.rotation * Mathf.Deg2Rad;
         Vector2 headingDir = new Vector2(Mathf.Cos(zAngle), Mathf.Sin(zAngle));
-        Vector2 firePoint = attachedPlayer.firePoint.transform.position;
+        Vector2 firePoint = attachedPlayer.firePointGO.transform.position;
         RayState newRay = new RayState(attachedPlayer.playerId, zAngle, firePoint);
 
         // Debug.Log("Was answer for tick: " + tickAck);

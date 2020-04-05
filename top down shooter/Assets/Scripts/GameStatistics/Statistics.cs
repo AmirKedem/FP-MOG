@@ -6,35 +6,32 @@ public class MyStopWatch
     System.Diagnostics.Stopwatch m_StopWatch;
     public long m_FrequencyMS  // property
     {
-        // set method
-        set { }
         // get method
-        get
-        {
-            return m_FrequencyMS;
-        }
+        get;
+        // set method
+        private set;
     }
 
     public long NowInMS  // property
     {
-        // set method
-        set { }
         // get method
         get
-        { 
-            return m_StopWatch.ElapsedTicks / m_FrequencyMS; 
+        {
+            return m_StopWatch.ElapsedTicks / m_FrequencyMS;
         }
+        // set method
+        private set { }
     }
 
     public long NowInTicks  // property
     {
-        // set method
-        set { }
         // get method
         get
         {
             return m_StopWatch.ElapsedTicks;
         }
+        // set method
+        private set { }
     }
 
     public MyStopWatch()

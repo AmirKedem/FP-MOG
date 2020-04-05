@@ -15,18 +15,23 @@ public class ClientReceiveBuffer : MyStopWatch
     // last tick received = 16;
     // prev tick = 13;   // var prevState = snapshotBuffer[snapshotBuffer.Count - 2 - gap]; 
     // next tick = 14;   // var prevState = snapshotBuffer[snapshotBuffer.Count - 1 - gap]; 
-    const int snapshotDesiredGap = 3;
+
+    const int snapshotDesiredGap = 2;
     int snapshotGap = -2;
 
     float time = 0;
-    float lerpTimeFactor = (1f / 10f) * 1000f; // 50 ms
+    float lerpTimeFactorOrigin;
+    float lerpTimeFactor;
+    float speed = 1;
 
     List<PlayerState> playerStates;
     CircularList<WorldState> snapshotBuffer;
 
     public ClientReceiveBuffer(float ticksPerSecond) : base()
     {
+        lerpTimeFactorOrigin = (1f / ticksPerSecond) * 1000f; // In ms.
         lerpTimeFactor = (1f / ticksPerSecond) * 1000f; // In ms.
+        
         snapshotBuffer = new CircularList<WorldState>(10);
         playerStates = new List<PlayerState>();
     }
@@ -36,7 +41,14 @@ public class ClientReceiveBuffer : MyStopWatch
         lock (snapshotBuffer)
         {
             snapshotBuffer.Add(snapshot);
-            snapshotGap++;
+            if (snapshotGap >= snapshotBuffer.Count - 2)
+            {
+                Reset();
+            }
+            else
+            {
+                snapshotGap++;
+            }
         }
     }
 
@@ -44,22 +56,30 @@ public class ClientReceiveBuffer : MyStopWatch
     {
         WorldState prevState;
         WorldState nextState;
+
+        lerpTimeFactor = lerpTimeFactorOrigin * speed;
         lock (snapshotBuffer)
         {
             // If we don't have enough snapshots to interpolate in between we simply set the state to the oldest received frame.
-            if (snapshotBuffer.Count - 1 - snapshotDesiredGap < 0)
+            if (snapshotBuffer.Count - 2 - snapshotDesiredGap < 0)
             {
                 time = 0;
                 return GetFirst();
             }
 
-
-            if (time > lerpTimeFactor)
+            if (time >= lerpTimeFactor)
             {
                 time %= lerpTimeFactor;
-                snapshotGap--;
-            }
 
+                if (snapshotGap <= 0)
+                {
+                    Reset();
+                }
+                else
+                {
+                    snapshotGap--;
+                }
+            }
 
             /*
             // Now we check if the snapshot gap is vaild and we are not interpolating too fast or too slow.
@@ -97,6 +117,7 @@ public class ClientReceiveBuffer : MyStopWatch
 
             //Debug.Log("index of prev state: " + (snapshotBuffer.Count - 2 - snapshotGap));
             //Debug.Log("index of next state: " + (snapshotBuffer.Count - 1 - snapshotGap));
+            //Debug.Log("interpolation rate: " + lerpTimeFactor);
 
             try
             {
@@ -107,7 +128,7 @@ public class ClientReceiveBuffer : MyStopWatch
             {
                 return GetFirst();
             }
-            //Debug.Log("latest State: " + snapshotBuffer[snapshotBuffer.Count - 1].serverTickSeq + " prevState: " + prevState.serverTickSeq + " nextState: " + nextState.serverTickSeq);
+            Debug.Log("latest State: " + snapshotBuffer[snapshotBuffer.Count - 1].serverTickSeq + " prevState: " + prevState.serverTickSeq + " nextState: " + nextState.serverTickSeq);
 
         }
 
@@ -163,6 +184,8 @@ public class ClientReceiveBuffer : MyStopWatch
     {
         time = 0;
         snapshotGap = snapshotDesiredGap;
+        speed = 1;
+        lerpTimeFactor = lerpTimeFactorOrigin;
     }
 
 }

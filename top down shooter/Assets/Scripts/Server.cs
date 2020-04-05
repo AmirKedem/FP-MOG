@@ -20,13 +20,12 @@ public class User
     public byte[] buffer = new byte[BufferSize];
     // Received data string.
     protected MemoryStream ms = new MemoryStream();
+    byte[] data;
 
-    public int bytesRec = 0;
-    protected int offset = 0;
-    protected int len = 0;
-
-    protected int cut;
-    protected string str;
+    int bytesRec = 0;
+    int offset = 0;
+    int len = 0;
+    int cut;
 
     public User(Socket sock)
     {
@@ -40,41 +39,72 @@ public class User
         // Set the send buffer size to 4k.
         this.sock.SendBufferSize = 4096;
 
-        player = new Player();
         statisticsModule = new Statistics();
     }
-
-    public void ReceiveOnce()
+                            
+    public bool ReceiveOnce()
     {
-        // From one receive try to get as many messages as possible.
-        offset = 0;
-        if (len == 0)
+        /*
+         * returns one message in a byte array which then get processed by the client
+         * one message may require serveral calls to '.Receive' function.
+         */
+
+        // Receive the response from the remote device.
+        if (offset >= bytesRec)
         {
-            len = Globals.DeSerializeLenPrefix(buffer, offset);
-            offset = 4;
+            if (SafeReceive(ref buffer, ref bytesRec, ref offset))
+                return false;
         }
 
-        while (offset < bytesRec)
+        len = Globals.DeSerializeLenPrefix(buffer, offset);
+        offset += sizeof(int);
+
+        while (len > 0)
         {
             cut = Math.Min(len, bytesRec - offset);
             ms.Write(buffer, offset, cut);
             len -= cut;
             offset += cut;
 
-            if (len == 0)
+            if (len > 0)
             {
-                // Process message in stream.
-                ProcessMessage(ms.ToArray());
-                // Clean the MemoryStream.
-                ms.SetLength(0);
-                // For the next message within this recevie.
-                if (offset < bytesRec)
-                {
-                    len = Globals.DeSerializeLenPrefix(buffer, offset);
-                    offset += sizeof(int);
-                }
+                // The left over of the previous message.
+                if (SafeReceive(ref buffer, ref bytesRec, ref offset))
+                    return false;
             }
         }
+
+        // Process one message from the stream.
+        data = ms.ToArray();
+        // Clear the buffer.
+        ms.SetLength(0);
+
+        // Process the new received message.
+        ProcessMessage(data);
+        return true;
+    }
+
+    private bool SafeReceive(ref byte[] buffer, ref int bytesRec, ref int offset)
+    {
+        try
+        {
+            bytesRec = sock.Receive(buffer);
+
+            // Which means an empty packet
+            if (bytesRec <= sizeof(int))
+            {
+                Console.WriteLine("Client Disconnected: Cause - Empty Message");
+                return true;
+            }
+        }
+        catch
+        {
+            Console.WriteLine("Client Disconnected: Cause - Close Message");
+            return true;
+        }
+
+        offset = 0;
+        return false;
     }
 
     private void ProcessMessage(byte[] data)
@@ -83,19 +113,23 @@ public class User
         statisticsModule.RecordRecvPacket(ci.clientTickSeq, ci.serverTickAck, ci.timeSpentInClientInTicks);
         this.player.CacheClientInput(ci);
     }
+
 }
 
 public class Server : MonoBehaviour
 {
+    static readonly ushort MaximumPlayers = 3;
+    List<ushort> playerIdList = Enumerable.Range(1, MaximumPlayers).Select(x => (ushort)x).ToList();
+    
+
     [SerializeField]
     public GameObject playerPrefab;
 
     private ServerLoop serverLoop;
     private static bool isRunning;
-    private readonly int MaximumPlayers = 10;
+    
     private static Socket listenerSocket;
-
-    private List<User> instantiateJobs = new List<User>();
+    private List<Tuple<User, ushort>> instantiateJobs = new List<Tuple<User, ushort>>();
 
     private static List<Socket> InputsOG = new List<Socket>();
     private static List<Socket> OutputsOG = new List<Socket>();
@@ -103,6 +137,14 @@ public class Server : MonoBehaviour
 
     public static Dictionary<Socket, User> clients = new Dictionary<Socket, User>();
     public static List<Socket> disconnectedClients = new List<Socket>();
+
+
+    public ushort GetPlayerId()
+    {
+        var newID = playerIdList[0];
+        playerIdList.RemoveAt(0);
+        return newID;
+    }
 
     private void Start()
     {
@@ -117,32 +159,45 @@ public class Server : MonoBehaviour
         {
             for (int i = 0; i < instantiateJobs.Count; i++)
             {
+                (User user, ushort id) = instantiateJobs[i]; 
+
                 var obj = Instantiate(playerPrefab, Vector3.zero, Quaternion.identity);
-                instantiateJobs[i].player.InitPlayer(obj);
+                var tmpPlayer = obj.GetComponent<Player>();
+                tmpPlayer.SetPlayerID(id);
+
+                user.player = tmpPlayer;
 
                 // Attach the Lag compensation module to the new instantiated player.
-                obj.AddComponent<LagCompensationModule>().Init(instantiateJobs[i].player);
+                obj.AddComponent<LagCompensationModule>().Init(user.player);
             }
 
             instantiateJobs.Clear();
         }
 
-        // Every tick we call update function which will process all the user commands and apply them to the physics world.
+        
         lock (disconnectedClients)
         {
             foreach (var disconnectedSock in disconnectedClients)
             {
+                var playerId = clients[disconnectedSock].player.playerId;
                 GameObject.Destroy(clients[disconnectedSock].player.playerContainer);
 
                 lock (clients)
                 {
                     clients.Remove(disconnectedSock);
                 }
+
+                lock (playerIdList)
+                {
+                    // return the id number to the id pool for new players to join in.
+                    playerIdList.Add(playerId);
+                }
             }
 
             disconnectedClients.Clear();
         }
 
+        // Every tick we call update function which will process all the user commands and apply them to the physics world.
         serverLoop.Update(clients.Values.Select(x => x.player).ToList());
 
         WorldState snapshot = serverLoop.GetSnapshot();
@@ -160,7 +215,188 @@ public class Server : MonoBehaviour
         }
     }
 
-    /*
+    private void SendSnapshot(Socket sock, WorldState snapshot)
+    {
+        var usr = clients[sock];
+        var statisticsModule = usr.statisticsModule;
+        snapshot.UpdateStatistics(statisticsModule.tickAck, statisticsModule.GetTimeSpentIdleInTicks());
+
+        var message = ServerPktSerializer.Serialize(snapshot);
+        //Console.WriteLine("Update Send Reply " + message.Length);
+        BeginSend(usr, message);
+    }
+
+    void BeginSend(User user, byte[] msgArray)
+    {
+        byte[] wrapped = Globals.SerializeLenPrefix(msgArray);
+        user.sock.BeginSend(wrapped, 0, wrapped.Length, SocketFlags.None, EndSend, user);
+    }
+
+    void EndSend(IAsyncResult iar)
+    {
+        User user = (iar.AsyncState as User);
+        user.statisticsModule.RecordSentPacket();
+        int BytesSent = user.sock.EndSend(iar);
+        //Console.WriteLine("Bytes Sent: " + BytesSent);
+    }
+
+    private void StartServer()
+    {
+        // Establish the local endpoint for the socket. 
+        IPAddress ipAddress = ServerInfo.ipAddress;
+        IPEndPoint localEndPoint = ServerInfo.localEP;
+
+        Console.WriteLine("The server is running  on: " + localEndPoint.Address.ToString() + " : " + localEndPoint.Port.ToString());
+        Console.WriteLine("Is loopback: " + IPAddress.IsLoopback(localEndPoint.Address));
+
+        // Create a TCP/IP socket.  
+        listenerSocket = new Socket(ipAddress.AddressFamily,
+            SocketType.Stream, ProtocolType.Tcp);
+
+        // Bind the socket to the local endpoint and listen for incoming connections.  
+        try
+        {
+            listenerSocket.Bind(localEndPoint);
+            listenerSocket.Listen(MaximumPlayers);
+
+            Thread selectThr = new Thread(StartListening);
+            selectThr.Start();
+        }
+        catch (Exception e)
+        {
+            Debug.Log(e.ToString());
+            Application.Quit();
+        }
+    }
+
+    public void StartListening()
+    {
+        List<Socket> Inputs;
+        List<Socket> Errors;
+
+        Console.WriteLine("Main Loop");
+        InputsOG.Add(listenerSocket);
+
+        isRunning = true;
+        while (isRunning)
+        {
+            Inputs = InputsOG.ToList();
+            Errors = InputsOG.ToList();
+
+            Socket.Select(Inputs, null, Errors, -1);
+
+            foreach (Socket sock in Inputs)
+            {
+                if (sock == listenerSocket)
+                {
+                    // If the sock is the server socket then we got a new player.
+                    // So we need to Accept the socket and assign the socket an available new player ID and entity.
+                    Socket newConnection = sock.Accept();
+
+                    if (playerIdList.Count > 0)
+                    {
+                        OnUserConnect(newConnection);
+                    } 
+                    else
+                    {
+                        Debug.Log($"{newConnection.RemoteEndPoint} failed to connect: Server full!");
+                        newConnection.Close();
+
+                    }
+
+                }
+                else
+                {
+                    if (sock != null)
+                    {
+                        User usr = clients[sock];
+                        // Receive and process one message at a time.
+                        bool result = usr.ReceiveOnce();
+
+                        if (result == false)
+                        {
+                            OnUserDisconnect(sock);
+                        }
+                    }
+                }
+            }
+
+            foreach (Socket sock in Errors)
+            {
+                Console.WriteLine("Client Disconnected from Errors");
+                OnUserDisconnect(sock);
+            }
+
+            Errors.Clear();
+        }
+
+        Debug.Log("Stop Listening");
+    }
+
+    private void OnUserConnect(Socket newConnection)
+    {
+        User usr = new User(newConnection);
+
+        ushort newPlayerID = GetPlayerId();
+        // Instantiate at the main thread, not here.
+        lock (instantiateJobs)
+        {
+            instantiateJobs.Add(Tuple.Create(usr, newPlayerID));
+        }
+
+        Console.WriteLine("Client connected");
+
+        // Send to the connected client his ID.
+        BeginSend(usr, WelcomeMessage.Serialize(newPlayerID));
+
+        clients.Add(newConnection, usr);
+
+        InputsOG.Add(newConnection);
+        OutputsOG.Add(newConnection);
+    }
+
+    void OnApplicationQuit()
+    {
+        Debug.Log("Application Quit\nClosing Socket");
+        CloseServer();
+    }
+
+    static void CloseServer()
+    {
+        if (listenerSocket == null)
+            return;
+
+        if (isRunning) {
+            isRunning = false;
+
+            if (listenerSocket.Connected)
+                listenerSocket.Shutdown(SocketShutdown.Both);
+            listenerSocket.Close();
+            listenerSocket = null;
+        }
+    }
+
+    static void OnUserDisconnect(Socket sock)
+    {
+        try
+        {
+            sock.Close();
+
+            lock (disconnectedClients)
+            {
+                disconnectedClients.Add(sock);
+            }
+
+            InputsOG.Remove(sock);
+            OutputsOG.Remove(sock);
+
+            Console.WriteLine("Client Disconnected");
+        }
+        catch { }
+    }
+}
+
+/*
      
     Dictionary<int, int> m_TickStats = new Dictionary<int, int>();
     void UpdateActiveState()
@@ -222,188 +458,3 @@ public class Server : MonoBehaviour
     }
 
     */
-
-    private void SendSnapshot(Socket sock, WorldState snapshot)
-    {
-        var usr = clients[sock];
-        var statisticsModule = usr.statisticsModule;
-        snapshot.UpdateStatistics(statisticsModule.tickAck, statisticsModule.GetTimeSpentIdleInTicks());
-
-        var message = ServerPktSerializer.Serialize(snapshot);
-        //Console.WriteLine("Update Send Reply " + message.Length);
-        BeginSend(usr, message);
-    }
-
-    void BeginSend(User user, byte[] msgArray)
-    {
-        byte[] wrapped = Globals.SerializeLenPrefix(msgArray);
-        user.sock.BeginSend(wrapped, 0, wrapped.Length, SocketFlags.None, EndSend, user);
-    }
-
-    void EndSend(IAsyncResult iar)
-    {
-        User user = (iar.AsyncState as User);
-        user.statisticsModule.RecordSentPacket();
-        int BytesSent = user.sock.EndSend(iar);
-        //Console.WriteLine("Bytes Sent: " + BytesSent);
-    }
-
-    private void StartServer()
-    {
-        // Establish the local endpoint for the socket. 
-        IPAddress ipAddress = ServerInfo.ipAddress;
-        IPEndPoint localEndPoint = ServerInfo.localEP;
-
-        Console.WriteLine("The server is running  on: " + localEndPoint.Address.ToString() + " : " + localEndPoint.Port.ToString());
-        Console.WriteLine("Is loopback: " + IPAddress.IsLoopback(localEndPoint.Address));
-
-        // Create a TCP/IP socket.  
-        listenerSocket = new Socket(ipAddress.AddressFamily,
-            SocketType.Stream, ProtocolType.Tcp);
-
-        // Bind the socket to the local endpoint and listen for incoming connections.  
-        try
-        {
-            listenerSocket.Bind(localEndPoint);
-            listenerSocket.Listen(MaximumPlayers);
-
-            Thread selectThr = new Thread(StartListening);
-            selectThr.Start();
-        }
-        catch (Exception e)
-        {
-            Debug.Log(e.ToString());
-            Application.Quit();
-        }
-    }
-
-    public void StartListening()
-    {
-        List<Socket> Inputs;
-        List<Socket> Errors;
-
-        Socket tmp;
-        User usr;
-
-        Console.WriteLine("Main Loop");
-        InputsOG.Add(listenerSocket);
-
-        isRunning = true;
-        while (isRunning)
-        {
-            Inputs = InputsOG.ToList();
-            Errors = InputsOG.ToList();
-
-            Socket.Select(Inputs, null, Errors, -1);
-
-            foreach (Socket sock in Inputs)
-            {
-                if (sock == listenerSocket)
-                {
-                    tmp = sock.Accept();
-                    usr = new User(tmp);
-
-                    List<byte> welcomePacket = new List<byte>();
-
-                    NetworkUtils.SerializeUshort(welcomePacket, usr.player.playerId);
-                    NetworkUtils.SerializeUshort(welcomePacket, ServerSettings.ticksPerSecond);
-
-                    // Send to the connected client his ID.
-                    BeginSend(usr, welcomePacket.ToArray());
-
-                    // Instantiate at the main thread, not here.
-                    lock (instantiateJobs)
-                    {
-                        instantiateJobs.Add(usr);
-                    }
-
-                    Console.WriteLine("Client connected");
-                    Console.WriteLine(string.Format("Connected: {0}", tmp.Connected));
-
-                    clients.Add(tmp, usr);
-
-                    InputsOG.Add(tmp);
-                    OutputsOG.Add(tmp);
-                }
-                else
-                {
-                    try
-                    {
-                        if (sock != null)
-                        {
-                            usr = clients[sock];
-                            usr.bytesRec = sock.Receive(usr.buffer, 0, usr.buffer.Length, 0);
-
-                            if (usr.bytesRec <= 0)
-                            {
-                                Console.WriteLine("Client Disconnected empty Message");
-                                OnUserDisconnect(sock);
-                            }
-                            else
-                            {
-                                // Receive the data.
-                                usr.ReceiveOnce();
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        Console.WriteLine("Client Disconnected Couldn't Receive Message");
-                        OnUserDisconnect(sock);
-                    }
-                }
-            }
-
-            foreach (Socket sock in Errors)
-            {
-                Console.WriteLine("Client Disconnected from Errors");
-                OnUserDisconnect(sock);
-            }
-
-            Errors.Clear();
-        }
-
-        Debug.Log("Stop Listening");
-    }
-
-    void OnApplicationQuit()
-    {
-        Debug.Log("Application Quit\nClosing Socket");
-        CloseServer();
-    }
-
-    static void CloseServer()
-    {
-        if (listenerSocket == null)
-            return;
-
-        if (isRunning) {
-            isRunning = false;
-
-            if (listenerSocket.Connected)
-                listenerSocket.Shutdown(SocketShutdown.Both);
-            listenerSocket.Close();
-            listenerSocket = null;
-        }
-    }
-
-    static void OnUserDisconnect(Socket sock)
-    {
-        try
-        {
-            sock.Close();
-
-            lock (disconnectedClients)
-            {
-                disconnectedClients.Add(sock);
-            }
-
-            InputsOG.Remove(sock);
-            OutputsOG.Remove(sock);
-
-            Console.WriteLine("Client Disconnected");
-        }
-        catch { }
-    }
-}
- 

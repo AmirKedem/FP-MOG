@@ -89,7 +89,6 @@ public class ServerLoop
     float tickDuration;
     float lastStartTickTime = 0;
 
-    const float speedFactor = 3f;
 
     const int NoMoreEvents = -1;
 
@@ -275,46 +274,15 @@ public class ServerLoop
 
     public void ApplyGameplay(Player player, InputEvent ie)
     {
-        if (player.playerContainer == null)
+        if (player == null || player.playerContainer == null)
             return;
 
-        float zAngle = Mathf.Repeat(ie.zAngle, 360);
-        player.rb.rotation = zAngle;
-        player.playerGameobject.transform.rotation = Quaternion.Euler(0, 0, zAngle);
-
-        ApplyMovement(player, ie);
+        player.ApplyUserCommand(ie);
 
         if (ie.mouseDown == true)
         {
             FireRayWithLagComp(player, ie.serverTick);
         }
-    }
-
-    public Vector2 RotateVector(Vector2 v, float radian)
-    {
-        float _x = v.x * Mathf.Cos(radian) - v.y * Mathf.Sin(radian);
-        float _y = v.x * Mathf.Sin(radian) + v.y * Mathf.Cos(radian);
-        return new Vector2(_x, _y);
-    }
-
-    public void ApplyMovement(Player player, InputEvent ie)
-    {
-        if (player.playerContainer == null)
-            return;
-
-        float zAngleRad = (player.rb.rotation - 90) * Mathf.Deg2Rad;
-
-        byte keys = ie.keys;
-        int x = (int)((keys >> 3) & 1) - (int)((keys >> 1) & 1);
-        int y = (int)((keys >> 0) & 1) - (int)((keys >> 2) & 1);
-
-        // Scale the vector by the speed factor.
-        Vector2 movement = new Vector2(x, y).normalized * speedFactor;
-
-        // forward is always towards heading direction.
-        // movement = RotateVector(movement, zAngleRad);
-
-        player.rb.velocity = movement;
     }
 
     public void FireRayNoLagComp(Player player, int tickAck)
@@ -323,7 +291,7 @@ public class ServerLoop
             return;
 
         // Debug.Log("Player " + player.playerId + " Fire");
-        Vector2 firePoint = player.firePoint.transform.position;
+        Vector2 firePoint = player.firePointGO.transform.position;
 
         float zAngle = player.rb.rotation * Mathf.Deg2Rad;
         Vector2 headingDir = new Vector2(Mathf.Cos(zAngle), Mathf.Sin(zAngle));
@@ -361,6 +329,7 @@ public class ServerLoop
                 Debug.Log("Player " + player.playerId + " Bodyshot Player " + hitPlayerID);
             }
         }
+
         // DEBUG
         GameObject circ = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         circ.transform.position = intersect;
