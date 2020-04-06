@@ -4,7 +4,7 @@ using UnityEngine;
 public class ServerSettings : MonoBehaviour
 {
     [SerializeField] [Range(1, 120)]
-    public static ushort ticksPerSecond = 60;
+    public static ushort ticksPerSecond = 10;
 
     void Awake()
     {

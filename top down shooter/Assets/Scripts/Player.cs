@@ -70,8 +70,9 @@ public class Player : MonoBehaviour
             catch { }
 
             // Particle effect
-            var rotation = Quaternion.Euler(0, 0, Random.Range(0.0f, 360.0f));
-            var effect = GameObject.Instantiate(impactEffect, hitInfo.point, rotation);
+            var effectPosition = new Vector3(hitInfo.point.x, hitInfo.point.y, -1);
+            var effectRotation = Quaternion.Euler(0, 0, Random.Range(0.0f, 360.0f));
+            var effect = GameObject.Instantiate(impactEffect, effectPosition, effectRotation);
             GameObject.Destroy(effect, 1);
 
             //DrawRay.DrawLine(firePoint.transform.position, hitInfo.point, Color.red, 0.05f);
@@ -98,7 +99,6 @@ public class Player : MonoBehaviour
         playerGameobject.transform.rotation = Quaternion.Euler(0, 0, zAngle);
 
         //float zAngleRad = (rb.rotation - 90) * Mathf.Deg2Rad;
-
         byte keys = ie.keys;
         int x = (int)((keys >> 3) & 1) - (int)((keys >> 1) & 1);
         int y = (int)((keys >> 0) & 1) - (int)((keys >> 2) & 1);
@@ -108,43 +108,42 @@ public class Player : MonoBehaviour
 
         // forward is always towards heading direction.
         // movement = RotateVector(movement, zAngleRad);
-
         rb.velocity = movement;
     }
 
     public void CacheClientInput(ClientInput ci)
     {
-        userCommandBufferList.AddRange(ServerUserCommand.CreaetUserCommands(this, ci));
-
-        foreach (var i in userCommandBufferList)
+        lock (userCommandBufferList)
         {
-            if (i == null)
+            userCommandBufferList.AddRange(ServerUserCommand.CreaetUserCommands(this, ci));
+
+            foreach (var i in userCommandBufferList)
             {
-                Debug.Log("Major Bug Detected Here");
+                if (i == null)
+                {
+                    Debug.Log("Major Bug Detected Here");
+                }
             }
         }
     }
 
     public void MergeWithBuffer()
     {
-        lock (userCommandList)
+        lock (userCommandBufferList)
         {
-            lock (userCommandBufferList)
+            // TODO work out why some User Commands are null 
+            // it works for now tho
+            for (int i = userCommandBufferList.Count - 1; i >= 0; i--)
             {
-                // TODO work out why some User Commands are null 
-                // it works for now tho
-                for (int i = userCommandBufferList.Count - 1; i >= 0; i--)
-                {
-                    if (userCommandBufferList[i] == null)
-                        userCommandBufferList.RemoveAt(i);
-                }
-
-                userCommandList.AddRange(userCommandBufferList);
-                userCommandBufferList.Clear();
+                if (userCommandBufferList[i] == null)
+                    userCommandBufferList.RemoveAt(i);
             }
-            
-            userCommandList.Sort((a, b) => a.serverRecTime.CompareTo(b.serverRecTime));
+
+            userCommandList.AddRange(userCommandBufferList);
+            userCommandBufferList.Clear();
         }
+            
+        userCommandList.Sort((a, b) => a.serverRecTime.CompareTo(b.serverRecTime));
     }
 }
 

@@ -109,9 +109,21 @@ public class User
 
     private void ProcessMessage(byte[] data)
     {
-        var ci = ClientPktSerializer.DeSerialize(data);
-        statisticsModule.RecordRecvPacket(ci.clientTickSeq, ci.serverTickAck, ci.timeSpentInClientInTicks);
-        this.player.CacheClientInput(ci);
+        if (this.player == null)
+            return;
+
+        try
+        {
+            var ci = ClientPktSerializer.DeSerialize(data);
+            statisticsModule.RecordRecvPacket(ci.clientTickSeq, ci.serverTickAck, ci.timeSpentInClientInTicks);
+            this.player.CacheClientInput(ci);
+        } 
+        catch
+        {
+            Debug.Log("Problem with serialization");
+        }
+
+        
     }
 
 }

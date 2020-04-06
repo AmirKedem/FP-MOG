@@ -16,13 +16,16 @@ public class ClientReceiveBuffer : MyStopWatch
     // prev tick = 13;   // var prevState = snapshotBuffer[snapshotBuffer.Count - 2 - gap]; 
     // next tick = 14;   // var prevState = snapshotBuffer[snapshotBuffer.Count - 1 - gap]; 
 
-    const int snapshotDesiredGap = 2;
+    const int snapshotDesiredGap = 5;
     int snapshotGap = -2;
 
     float time = 0;
     float lerpTimeFactorOrigin;
     float lerpTimeFactor;
     float speed = 1;
+
+    long now;
+    long lastTimeCallTime;
 
     List<PlayerState> playerStates;
     CircularList<WorldState> snapshotBuffer;
@@ -64,6 +67,7 @@ public class ClientReceiveBuffer : MyStopWatch
             if (snapshotBuffer.Count - 2 - snapshotDesiredGap < 0)
             {
                 time = 0;
+                lastTimeCallTime = NowInTicks;
                 return GetFirst();
             }
 
@@ -134,7 +138,12 @@ public class ClientReceiveBuffer : MyStopWatch
 
         PlayerState.Interp(prevState.playersState, nextState.playersState, time/lerpTimeFactor, ref playerStates);
 
-        time += Time.deltaTime * 1000f;
+        now = this.NowInTicks;
+        float deltaTime = (now - lastTimeCallTime) / ((float)this.m_FrequencyMS * 1000f);
+
+        time += deltaTime * 1000f;
+
+        lastTimeCallTime = this.NowInTicks;
 
         // Since we might render the same tick twice (depends on the ratio between server tick rate and client tick rate)
         // after using the raystates which are a one-off action so they happen only once therefore we take the rayStates and then clear the field
