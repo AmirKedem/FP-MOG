@@ -335,7 +335,7 @@ public class Server : MonoBehaviour
 
             foreach (Socket sock in Errors)
             {
-                Console.WriteLine("Client Disconnected from Errors");
+                Console.WriteLine("Client Disconnected: Cause - Error");
                 OnUserDisconnect(sock);
             }
 
@@ -356,9 +356,10 @@ public class Server : MonoBehaviour
             instantiateJobs.Add(Tuple.Create(usr, newPlayerID));
         }
 
-        Console.WriteLine("Client connected");
+        Console.WriteLine("Client Connected");
+        Console.WriteLine("Given ID: " + newPlayerID);
 
-        // Send to the connected client his ID.
+        // Send to the connected client his new assigned ID.
         BeginSend(usr, WelcomeMessage.Serialize(newPlayerID));
 
         clients.Add(newConnection, usr);
@@ -402,7 +403,7 @@ public class Server : MonoBehaviour
             InputsOG.Remove(sock);
             OutputsOG.Remove(sock);
 
-            Console.WriteLine("Client Disconnected");
+            //Console.WriteLine("Client Disconnected");
         }
         catch { }
     }

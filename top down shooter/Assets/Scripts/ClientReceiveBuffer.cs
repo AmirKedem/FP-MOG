@@ -132,8 +132,8 @@ public class ClientReceiveBuffer : MyStopWatch
             {
                 return GetFirst();
             }
-            Debug.Log("latest State: " + snapshotBuffer[snapshotBuffer.Count - 1].serverTickSeq + " prevState: " + prevState.serverTickSeq + " nextState: " + nextState.serverTickSeq);
 
+            //Debug.Log("latest State: " + snapshotBuffer[snapshotBuffer.Count - 1].serverTickSeq + " prevState: " + prevState.serverTickSeq + " nextState: " + nextState.serverTickSeq);
         }
 
         PlayerState.Interp(prevState.playersState, nextState.playersState, time/lerpTimeFactor, ref playerStates);

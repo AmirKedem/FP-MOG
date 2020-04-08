@@ -62,13 +62,6 @@ public class Player : MonoBehaviour
 
         if (hitInfo)
         {
-            Debug.Log(hitInfo.collider.gameObject);
-            try
-            {
-                Debug.Log(hitInfo.collider.gameObject.transform.parent.parent.name);
-            }
-            catch { }
-
             // Particle effect
             var effectPosition = new Vector3(hitInfo.point.x, hitInfo.point.y, -1);
             var effectRotation = Quaternion.Euler(0, 0, Random.Range(0.0f, 360.0f));
