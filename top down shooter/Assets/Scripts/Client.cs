@@ -379,7 +379,8 @@ public class Client : MonoBehaviour
         wm = new WorldManager();
         statisticsModule = new Statistics();
 
-        playerInputHandler = new PlayerInputHandler(playerLocalRigidbody.transform, cam);
+        var localPlayerFirePoint = playerLocalContainer.GetComponent<Player>().firePointGO;
+        playerInputHandler = new PlayerInputHandler(playerLocalRigidbody.transform, localPlayerFirePoint.transform, cam);
 
         interpolationFlag = interpolationToggle.isOn;
         predictionFlag = predictionToggle.isOn;
@@ -564,18 +565,20 @@ public class PlayerInputHandler {
 
     ClientInput ci;
     Transform localPlayerTransform;
+    Transform localPlayerFirePointTransform;
     Camera cam;
 
     float zAngle;
     bool mouseDown;
     byte pressedKeys;
 
-    public PlayerInputHandler(Transform localPlayerTransform, Camera cam)
+    public PlayerInputHandler(Transform localPlayerTransform, Transform localPlayerFirePointTransform, Camera cam)
     {
         // Init Player Input Events.
         ci = new ClientInput();
 
         this.localPlayerTransform = localPlayerTransform;
+        this.localPlayerFirePointTransform = localPlayerFirePointTransform;
         this.cam = cam;
     }
 
@@ -632,8 +635,11 @@ public class PlayerInputHandler {
         if (Input.GetMouseButtonDown(0))
         {
             mouseDown = true;
+
             // Debug
-            DrawRay.DrawLine(localPlayerTransform.position, zAngle * Mathf.Deg2Rad, 100f, Color.yellow, 1f);
+            var zAngleRad = zAngle * Mathf.Deg2Rad; 
+            var vec = (Vector3) MathUtils.RotateVector(localPlayerFirePointTransform.localPosition, zAngleRad - Mathf.PI/2f);
+            DrawRay.DrawLine(localPlayerTransform.position + vec, zAngleRad, 100f, Color.yellow, 1f);
         }
     }
 

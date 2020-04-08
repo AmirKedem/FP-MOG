@@ -85,13 +85,6 @@ public class Player : MonoBehaviour
         }
     }
 
-    public Vector2 RotateVector(Vector2 v, float radian)
-    {
-        float _x = v.x * Mathf.Cos(radian) - v.y * Mathf.Sin(radian);
-        float _y = v.x * Mathf.Sin(radian) + v.y * Mathf.Cos(radian);
-        return new Vector2(_x, _y);
-    }
-
     public void ApplyUserCommand(InputEvent ie)
     {
         float zAngle = Mathf.Repeat(ie.zAngle, 360);
@@ -116,14 +109,6 @@ public class Player : MonoBehaviour
         lock (userCommandBufferList)
         {
             userCommandBufferList.AddRange(ServerUserCommand.CreaetUserCommands(this, ci));
-
-            foreach (var i in userCommandBufferList)
-            {
-                if (i == null)
-                {
-                    Debug.Log("Major Bug Detected Here");
-                }
-            }
         }
     }
 
@@ -146,40 +131,3 @@ public class Player : MonoBehaviour
         userCommandList.Sort((a, b) => a.serverRecTime.CompareTo(b.serverRecTime));
     }
 }
-
-public class ServerUserCommand
-{
-    public Player player;
-    public float serverRecTime;
-    public InputEvent ie;
-
-    public ServerUserCommand(Player player, float serverRecTime, InputEvent ie)
-    {
-        this.player = player;
-        this.serverRecTime = serverRecTime;
-        this.ie = ie;
-    }
-
-    public static List<ServerUserCommand> CreaetUserCommands(Player player, ClientInput ci)
-    {
-        List<ServerUserCommand> ret = new List<ServerUserCommand>();
-        float currTime = StopWacthTime.Time;
-
-        Debug.Log(ci.inputEvents.Count);
-        Debug.Log(currTime);
-        foreach (InputEvent ie in ci.inputEvents)
-        {
-            var cmd = new ServerUserCommand(player, currTime + ie.deltaTime, ie);
-            Debug.Log(currTime);
-            Debug.Log(ie.deltaTime);
-            if (cmd == null)
-            {
-                Debug.Log("Major Bug Detected Here");
-            }
-            
-            ret.Add(cmd);
-        }
-
-        return ret;
-    }
-} 
