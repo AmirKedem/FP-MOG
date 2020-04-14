@@ -31,7 +31,6 @@ public class User
     {
         // Configure  the given socket for every client.
         this.sock = sock;
-
         // Disable the Nagle Algorithm for this tcp socket.
         this.sock.NoDelay = true;
         // Set the receive buffer size to 4k
@@ -122,10 +121,7 @@ public class User
         {
             Debug.Log("Problem with serialization");
         }
-
-        
     }
-
 }
 
 public class Server : MonoBehaviour
@@ -189,10 +185,22 @@ public class Server : MonoBehaviour
         
         lock (disconnectedClients)
         {
+
+            foreach (var clientSock in clients.Keys)
+            {
+                if (clients[clientSock].player.playerContainer == null)
+                {
+                    OnUserDisconnect(clientSock);
+                }
+            }
+
             foreach (var disconnectedSock in disconnectedClients)
             {
                 var playerId = clients[disconnectedSock].player.playerId;
-                GameObject.Destroy(clients[disconnectedSock].player.playerContainer);
+                if (clients[disconnectedSock].player.playerContainer != null)
+                {
+                    GameObject.Destroy(clients[disconnectedSock].player.playerContainer);
+                }
 
                 lock (clients)
                 {
@@ -201,8 +209,10 @@ public class Server : MonoBehaviour
 
                 lock (playerIdList)
                 {
-                    // return the id number to the id pool for new players to join in.
                     playerIdList.Add(playerId);
+                    // return the id number to the id pool for new players to join in.
+                    Console.WriteLine("Client Disconnected, Returned Player ID: " + playerId);
+                    Console.WriteLine("Player Count: " + (MaximumPlayers - playerIdList.Count) + " / " + MaximumPlayers);
                 }
             }
 
@@ -315,19 +325,26 @@ public class Server : MonoBehaviour
                         newConnection.Close();
 
                     }
-
                 }
                 else
                 {
                     if (sock != null)
                     {
-                        User usr = clients[sock];
-                        // Receive and process one message at a time.
-                        bool result = usr.ReceiveOnce();
-
-                        if (result == false)
+                        try
                         {
-                            OnUserDisconnect(sock);
+                            User usr = clients[sock];
+                            // Receive and process one message at a time.
+                            bool result = usr.ReceiveOnce();
+
+                            if (result == false)
+                            {
+                                OnUserDisconnect(sock);
+                            }
+                        } 
+                        catch (Exception e)
+                        {
+                            Debug.Log("Line 339: key not found");
+                            Debug.Log(e);
                         }
                     }
                 }
@@ -356,8 +373,8 @@ public class Server : MonoBehaviour
             instantiateJobs.Add(Tuple.Create(usr, newPlayerID));
         }
 
-        Console.WriteLine("Client Connected");
-        Console.WriteLine("Given ID: " + newPlayerID);
+        Console.WriteLine("Client Connected, Given Player ID: " + newPlayerID);
+        Console.WriteLine("Player Count: " + (MaximumPlayers - playerIdList.Count) + " / " + MaximumPlayers);
 
         // Send to the connected client his new assigned ID.
         BeginSend(usr, WelcomeMessage.Serialize(newPlayerID));
@@ -397,7 +414,8 @@ public class Server : MonoBehaviour
 
             lock (disconnectedClients)
             {
-                disconnectedClients.Add(sock);
+                if (clients.ContainsKey(sock))
+                    disconnectedClients.Add(sock);
             }
 
             InputsOG.Remove(sock);
@@ -405,7 +423,10 @@ public class Server : MonoBehaviour
 
             //Console.WriteLine("Client Disconnected");
         }
-        catch { }
+        catch (Exception e) 
+        {
+            Debug.Log("OnUserDisconnect: " + e);
+        }
     }
 }
 

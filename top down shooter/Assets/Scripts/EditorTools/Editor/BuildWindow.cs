@@ -1,24 +1,24 @@
 ﻿using System;
-using System.Linq;
-using UnityEngine;
-using UnityEditor;
-using System.IO;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using UnityEditor;
 using UnityEditor.SceneManagement;
-using MS;
+using UnityEngine;
 
 public class BuildWindow : EditorWindow
 {
     Vector2 m_ScrollPos;
     QuickstartData quickstartData = new QuickstartData();
 
-    List<MultiScene> scenes = new List<MultiScene>();
+    List<SceneAsset> scenes = new List<SceneAsset>();
     List<string> scenesPaths = new List<string>()
     {
-        "Scenes/MS/MapMS",
-        "Scenes/MS/AIMS",
-        "Scenes/MS/ClientMS",
-        "Scenes/MS/ServerMS",
+        "Scenes/MainMenu",
+        "Scenes/Map",
+        "Scenes/AIClient",
+        "Scenes/Client",
+        "Scenes/Server",
     };
 
     public enum GameLoopMode
@@ -67,10 +67,10 @@ public class BuildWindow : EditorWindow
         // Setup the Scenes.
         foreach (string path in scenesPaths)
         {
-            MultiScene s = Resources.Load<MultiScene>(path);
+            SceneAsset s = Resources.Load<SceneAsset>(path);
             scenes.Add(s);
             
-            Debug.Log(s.name + " " + s.ReturnScenesNames());
+            Debug.Log(s.name + " Scene Loaded");
         }
     }
 
@@ -218,50 +218,38 @@ public class BuildWindow : EditorWindow
         GUILayout.Label("Quick Select", EditorStyles.boldLabel);
 
         GUILayout.BeginVertical(EditorStyles.textArea);
-        GUILayout.Label("Switch Scene - Map", GUILayout.ExpandWidth(true));
+        GUILayout.Label("Switch Scene", GUILayout.ExpandWidth(true));
         GUILayout.BeginHorizontal();
 
-
-        
         // The order of the scenes is by the order of the strings in scenesPaths.
         EditorGUILayout.BeginVertical();
+
+        if (GUILayout.Button("Main Menu", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
+        {
+            OpenSceneByPath(scenes[0]);
+        }
+
         if (GUILayout.Button("Preview", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
         {
-            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            {
-                EditorSceneManager.RestoreSceneManagerSetup(scenes[0].ToSceneSetups());
-            }
+            OpenSceneByPath(scenes[1]);
         }
 
         if (GUILayout.Button("AI Client", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
         {
-            foreach (var i in scenes)
-            {
-                Debug.Log(i);
-
-            }
-
-            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            {
-                EditorSceneManager.RestoreSceneManagerSetup(scenes[1].ToSceneSetups());
-            }
+            OpenSceneByPath(scenes[2]);
         }
 
         if (GUILayout.Button("Client", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
         {
-            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            {
-                EditorSceneManager.RestoreSceneManagerSetup(scenes[2].ToSceneSetups());
-            }
+            OpenSceneByPath(scenes[3]);
         }
 
         if (GUILayout.Button("Server", GUILayout.Width(100), GUILayout.ExpandWidth(true)))
         {
-            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            {
-                EditorSceneManager.RestoreSceneManagerSetup(scenes[3].ToSceneSetups());
-            }
+            OpenSceneByPath(scenes[4]);
         }
+
+
         EditorGUILayout.EndVertical();
 
         GUILayout.EndHorizontal();
@@ -354,42 +342,51 @@ public class BuildWindow : EditorWindow
         GUILayout.EndVertical();
     }
 
+    public static void OpenSceneByPath(SceneAsset scene)
+    {
+        if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            var path = AssetDatabase.GetAssetPath(scene);
+            EditorSceneManager.OpenScene(path);
+        }
+    }
+
     public static void BuildServer()
     {
-        string origianl = PlayerSettings.productName;
+        string original = PlayerSettings.productName;
         string sceneFolder = "Assets/Resources/Scenes";
         PlayerSettings.productName = "Server";
         BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
         {
-            scenes = new[] { sceneFolder + "/Server.unity", sceneFolder + "/Map.unity" },
+            scenes = new[] { sceneFolder + "/Server.unity" },
             locationPathName = GetBuildPath() + "/Server/Server.exe",
             target = BuildTarget.StandaloneWindows64,
             options = BuildOptions.EnableHeadlessMode
         };
         BuildPipeline.BuildPlayer(buildPlayerOptions);
         Debug.Log("Server Build successful");
-        PlayerSettings.productName = origianl;
+        PlayerSettings.productName = original;
     }
 
     public static void BuildClient()
     {
-        string origianl = PlayerSettings.productName;
+        string original = PlayerSettings.productName;
         string sceneFolder = "Assets/Resources/Scenes";
         PlayerSettings.productName = "Client";
         BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
         {
-            scenes = new[] { sceneFolder + "/Client.unity", sceneFolder + "/Map.unity" },
+            scenes = new[] { sceneFolder + "/MainMenu.unity", sceneFolder + "/Client.unity" },
             locationPathName = GetBuildPath() + "/Client/Client.exe",
             target = BuildTarget.StandaloneWindows64,
         };
         BuildPipeline.BuildPlayer(buildPlayerOptions);
         Debug.Log("Client Build successful");
-        PlayerSettings.productName = origianl;
+        PlayerSettings.productName = original;
     }
 
     public static void BuildAI()
     {
-        string origianl = PlayerSettings.productName;
+        string original = PlayerSettings.productName;
         string sceneFolder = "Assets/Resources/Scenes";
         PlayerSettings.productName = "AI Client";
         BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
@@ -401,7 +398,7 @@ public class BuildWindow : EditorWindow
         };
         BuildPipeline.BuildPlayer(buildPlayerOptions);
         Debug.Log("AI Client Build successful");
-        PlayerSettings.productName = origianl;
+        PlayerSettings.productName = original;
     }
 
     static void StopAll()
@@ -440,7 +437,7 @@ public class BuildWindow : EditorWindow
             }
         }
     }
-
+    
     static string GetBuildPath()
     {
         return "Builds";

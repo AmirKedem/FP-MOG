@@ -266,14 +266,12 @@ public struct PlayerState
     public ushort playerId;
     public float zAngle;
     public Vector2 pos;
-    public Vector2 vel;
 
-    public PlayerState(ushort playerId, float zAngle, Vector2 pos, Vector2 vel)
+    public PlayerState(ushort playerId, float zAngle, Vector2 pos)
     {
         this.playerId = playerId;
         this.zAngle = zAngle;
         this.pos = pos;
-        this.vel = vel;
     }
 
     // Deserialize data received.
@@ -282,7 +280,6 @@ public struct PlayerState
         playerId = NetworkUtils.DeserializeUshort(data, ref offset);
         zAngle = NetworkUtils.DeserializeFloat(data, ref offset);
         pos = NetworkUtils.DeserializeVector2(data, ref offset);
-        vel = NetworkUtils.DeserializeVector2(data, ref offset);
     }
 
     // Serializes this object and add it as bytes to a given byte list.
@@ -291,7 +288,6 @@ public struct PlayerState
         NetworkUtils.SerializeUshort(byteList, playerId);
         NetworkUtils.SerializeFloat(byteList, zAngle);
         NetworkUtils.SerializeVector2(byteList, pos);
-        NetworkUtils.SerializeVector2(byteList, vel);
     }
 
     public static void Interp(List<PlayerState> prevStates, List<PlayerState> nextStates, float f,
@@ -311,7 +307,7 @@ public struct PlayerState
                 var interpPosition = Vector2.Lerp(prevState.pos, nextState.pos, f);
                 var interpRotation = Mathf.LerpAngle(prevState.zAngle, nextState.zAngle, f);
 
-                temp = new PlayerState(nextState.playerId, interpRotation, interpPosition, nextState.vel);
+                temp = new PlayerState(nextState.playerId, interpRotation, interpPosition);
                 playerStates.Add(temp);
             } 
             else

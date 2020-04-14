@@ -4,6 +4,9 @@ using UnityEngine;
 public class DisplayGUI : MonoBehaviour
 {
     [SerializeField]
+    Font font;
+    
+    [SerializeField]
     Camera cam;
 
     [SerializeField]
@@ -16,7 +19,7 @@ public class DisplayGUI : MonoBehaviour
     int rtt = -1;
 
     readonly int fontSize = 12;
-    readonly int offset = 5;
+    readonly int offset = 7;
     int w = Screen.width;
     int h = Screen.height;
 
@@ -46,20 +49,21 @@ public class DisplayGUI : MonoBehaviour
         RTTCompactStats();
         AngleLabel();
     }
-
+    
     private void FPSCompactStats()
     {
         GUIStyle style = new GUIStyle();
 
         Rect rect = new Rect(offset, offset, w, h);
         style.alignment = TextAnchor.UpperLeft;
-        style.fontStyle = FontStyle.Bold;
+
+        style.font = font;
         style.fontSize = fontSize;
         style.normal.textColor = Color.white;
 
         float fps = Mathf.RoundToInt(1.0f / deltaTime);
         float msec = deltaTime * 1000.0f;
-        string text = string.Format("FPS:{0} / {1:0.0} ms", fps, msec);
+        string text = string.Format("FPS: {0,3:0} / {1:0.0} ms", fps, msec);
         GUI.Label(rect, text, style);
     }
 
@@ -67,12 +71,12 @@ public class DisplayGUI : MonoBehaviour
     {
         GUIStyle style = new GUIStyle();
 
-        Rect rect = new Rect(offset + 100, offset, w, h);
+        Rect rect = new Rect(offset + 110, offset, w, h);
         style.alignment = TextAnchor.UpperLeft;
 
+        style.font = font;
         style.fontSize = fontSize;
         style.normal.textColor = Color.white;
-        style.fontStyle = FontStyle.Bold;
 
         string text = string.Format("RTT:---");
         if (rtt >= 0)
@@ -87,13 +91,14 @@ public class DisplayGUI : MonoBehaviour
         Rect rect = new Rect(offset, -offset, w, h);
         style.alignment = TextAnchor.LowerLeft;
 
+        style.font = font;
         style.fontSize = fontSize;
         style.normal.textColor = Color.white;
 
         Vector2 mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
         Vector2 mouseDir = mousePos - (Vector2) playerLocal.transform.position;
         float zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
-        string text = String.Format("Angle: {0:0.0}", zAngle);
+        string text = String.Format("Angle: {0,6:0.0}", zAngle);
         GUI.Label(rect, text, style);
     }
 }

@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -34,14 +32,13 @@ public class Player : MonoBehaviour
 
     public PlayerState GetState()
     {
-        return new PlayerState(playerId, playerGameobject.transform.eulerAngles.z, playerGameobject.transform.position, rb.velocity);
+        return new PlayerState(playerId, playerGameobject.transform.eulerAngles.z, playerGameobject.transform.position);
     }
 
     public void FromState(PlayerState ps)
     {
         playerGameobject.transform.position = new Vector2(ps.pos[0], ps.pos[1]);
         playerGameobject.transform.eulerAngles = new Vector3(0, 0, ps.zAngle);
-        rb.velocity = new Vector2(ps.vel[0], ps.vel[1]);
     }
 
     public void FromState(RayState rs)
@@ -53,11 +50,8 @@ public class Player : MonoBehaviour
         int masks = 0;
         masks |= (1 << LayerMask.NameToLayer("Player"));
         masks |= (1 << LayerMask.NameToLayer("Map"));
-        //RaycastHit2D hitInfo = Physics2D.Raycast(firePoint.transform.position, firePoint.transform.right, 1000, masks);
 
         var fireDir = new Vector2(Mathf.Cos(rs.zAngle), Mathf.Sin(rs.zAngle));
-
-        Debug.DrawRay(rs.pos, fireDir, Color.black, 10);
         RaycastHit2D hitInfo = Physics2D.Raycast(rs.pos, fireDir, 1000, masks);
 
         if (hitInfo)
@@ -67,7 +61,6 @@ public class Player : MonoBehaviour
             var effectRotation = Quaternion.Euler(0, 0, Random.Range(0.0f, 360.0f));
             var effect = GameObject.Instantiate(impactEffect, effectPosition, effectRotation);
             GameObject.Destroy(effect, 1);
-
             //DrawRay.DrawLine(firePoint.transform.position, hitInfo.point, Color.red, 0.05f);
             DrawRay.DrawLine(rs.pos, hitInfo.point, Color.red, 1f);
         }

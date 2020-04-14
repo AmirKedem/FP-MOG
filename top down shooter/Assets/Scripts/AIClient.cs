@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using UnityEditor;
 using UnityEngine;
 
 public class AIClient : MonoBehaviour
@@ -26,10 +22,8 @@ public class AIClient : MonoBehaviour
         {
             // Retrieve the socket from the state object.  
             Socket client = (Socket)ar.AsyncState;
-
             // Complete the connection.  
             client.EndConnect(ar);
-
             // Disable the Nagle Algorithm for this tcp socket.
             client.NoDelay = true;
             // Set the receive buffer size to 4k
@@ -81,7 +75,7 @@ public class AIClient : MonoBehaviour
             int bytesSent = client.EndSend(ar);
 
             // string str = string.Format("Sent {0} bytes to server.", bytesSent);
-            // Debug.Log(str);
+            // Debug.Log(str);-
         }
         catch (Exception e)
         {
@@ -141,16 +135,25 @@ public class AIClient : MonoBehaviour
     {
         try
         {
+            if (clientSock != null && !clientSock.Connected)
+            {
+                // If we got disconnected or we couldn't connect after at least 10 seconds we close the program.
+                if (Time.realtimeSinceStartup > 10)
+                {
+                    Application.Quit();
+                }
+            }
+
             AIInputHandler.AddInputEvent(statisticsModule.tickAck, PacketStartTime.Time);
-        }
-        catch { }
-
-        try
-        {
             ClientTick();
-        }
-        catch { }
+        } 
+        catch (Exception e)
+        {
+            Debug.Log(e.ToString());
 
+            Debug.Log("We got hit");
+            Application.Quit();
+        }
     }
 
     void OnApplicationQuit()

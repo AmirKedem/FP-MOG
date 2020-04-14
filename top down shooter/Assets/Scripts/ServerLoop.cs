@@ -344,7 +344,6 @@ public class ServerLoop
             return;
 
         LagCompensationModule module = player.playerContainer.GetComponent<LagCompensationModule>();
-        
         // We fire a ray and add that ray to the tick.
         rayStates.Add(module.FireShotWithBacktrack(tickAck));
     }

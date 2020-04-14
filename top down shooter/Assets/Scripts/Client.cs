@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 
 public static class PacketStartTime
@@ -141,18 +142,26 @@ public class Client : MonoBehaviour
     [SerializeField] private GameObject playerLocalContainer;
     [SerializeField] private GameObject playerLocalRigidbody;
 
-    [Header("Local player GameObject")]
+    [Header("Network Panels")]
     [SerializeField] private GameObject networkStatePanel;
-    [SerializeField] private GameObject networkErrorMessage;
+    [SerializeField] private GameObject networkConnectPanel;
+    [SerializeField] private GameObject networkAlgorithmsPanel;
+
+    [Header("Network Error Messages")]
+    [SerializeField] private GameObject networkErrorMsgFailed;
+    [SerializeField] private GameObject networkErrorMsgFull;
+        
+    [Header("Network Statistics")]
+    [SerializeField] GameObject graphyOverlay;
 
     [SerializeField] private Tayx.Graphy.Rtt.G_RttMonitor RttModule;
     [SerializeField] private DisplayGUI DisplayGuiRttText;
 
-    public static WorldManager wm;
-    public static ClientReceiveBuffer snapshotReceiveBuffer;
+    [Header("Game Over Panel")]
+    [SerializeField] private GameObject gameOverPanel;
 
-    public static WorldState snapshot;
     public static ClientInput ci;
+    public static ClientReceiveBuffer snapshotReceiveBuffer;
     public static PlayerInputHandler playerInputHandler;
     public static Statistics statisticsModule;
 
@@ -165,7 +174,7 @@ public class Client : MonoBehaviour
     // The client socket
     private ClientReceiveMessage clientReceiveMessage;
     private static Socket clientSock;
-    private static bool isConnected = false;
+    private static bool isConnected = false; // Whethere we are connected or not
 
 
     public void FlipInterpolationFlag()
@@ -187,10 +196,8 @@ public class Client : MonoBehaviour
         {
             // Retrieve the socket from the state object.  
             Socket client = (Socket)ar.AsyncState;
-
             // Complete the connection.  
             client.EndConnect(ar);
-
             // Disable the Nagle Algorithm for this tcp socket.
             client.NoDelay = true;
             // Set the receive buffer size to 4k
@@ -204,7 +211,7 @@ public class Client : MonoBehaviour
         {
             UnityThread.executeInUpdate(() =>
             {
-                networkErrorMessage.SetActive(true);
+                networkErrorMsgFailed.SetActive(true);
             });
 
             Debug.Log("Something went wrong and the socket couldn't connect");
@@ -219,6 +226,10 @@ public class Client : MonoBehaviour
         UnityThread.executeInUpdate(() =>
         {
             networkStatePanel.SetActive(false);
+            networkConnectPanel.SetActive(false);
+
+            networkAlgorithmsPanel.SetActive(true);
+            graphyOverlay.SetActive(true);
         });
 
         // Start the receive thread
@@ -291,10 +302,14 @@ public class Client : MonoBehaviour
         catch
         {
             Debug.Log("The room is full!");
+
+            UnityThread.executeInUpdate(() =>
+            {
+                networkErrorMsgFull.SetActive(true);
+            });
+
             Disconnect();
-#if UNITY_EDITOR
             return;
-#endif
         }
         // Each iteration processes one message at a time.
         // or in other words one world state or a snapshot.
@@ -305,15 +320,7 @@ public class Client : MonoBehaviour
                 return;
 
             data = clientReceiveMessage.ReceiveOnce();
-
-            try
-            {
-                ProcessWorldStateMessage(data);
-            } 
-            catch
-            {
-                Debug.Log("Serialization Problem");
-            }
+            ProcessWorldStateMessage(data);
         }
     }
 
@@ -337,7 +344,22 @@ public class Client : MonoBehaviour
     {
         // Process one message from a byte array.
         // Here we process the world state, deserialize it, record some statistics and store the new world state in a buffer.
-        var newWorldState = ServerPktSerializer.DeSerialize(data);
+
+        WorldState newWorldState;
+        try
+        {
+            newWorldState = ServerPktSerializer.DeSerialize(data);
+        }
+        catch
+        {
+            Debug.Log("Serialization Problem");
+            UnityThread.executeInUpdate(() =>
+            {
+                gameOverPanel.SetActive(true);
+            });
+            return;
+        }
+
         statisticsModule.RecordRecvPacket(newWorldState.serverTickSeq, newWorldState.clientTickAck, newWorldState.timeSpentInServerInTicks);
 
         // Set the current calculated rtt to the GUI modules.
@@ -349,7 +371,7 @@ public class Client : MonoBehaviour
         snapshotReceiveBuffer.AppendNewSnapshot(newWorldState);
     }
 
-    private void InitializeNetworking()
+    public void InitializeNetworking()
     {
         // Establish the remote endpoint for the socket.  
         IPAddress ipAddress = ClientInfo.ipAddress;
@@ -376,7 +398,6 @@ public class Client : MonoBehaviour
     void Start()
     {
         cam = Camera.main;
-        wm = new WorldManager();
         statisticsModule = new Statistics();
 
         var localPlayerFirePoint = playerLocalContainer.GetComponent<Player>().firePointGO;
@@ -386,8 +407,6 @@ public class Client : MonoBehaviour
         predictionFlag = predictionToggle.isOn;
 
         UnityThread.initUnityThread();
-
-        InitializeNetworking();
     }
 
     private void RenderServerTick(List<PlayerState> playerStates, List<RayState> rayStates)
@@ -429,7 +448,8 @@ public class Client : MonoBehaviour
             {
                 Application.Quit();
             }
-            Destroy(PlayerFromId[playerId].playerGameobject);
+
+            Destroy(PlayerFromId[playerId].playerContainer);
             PlayerFromId.Remove(playerId);
         }
     }
@@ -455,8 +475,16 @@ public class Client : MonoBehaviour
         if (Input.GetKey(KeyCode.Escape))
         {
             Disconnect();
-            Application.Quit();
+
+            if (!isConnected && !received)
+            {
+                SceneManager.LoadScene("MainMenu");
+            }
         }
+
+        // If the client is yet to receive his welocme message we have nothing to do in the loop.
+        if (!isConnected || !received)
+            return;
 
         playerInputHandler.AddInputEvent(statisticsModule.tickAck, PacketStartTime.Time);
 
@@ -508,55 +536,6 @@ public class Client : MonoBehaviour
 
             Debug.Log("Disconnected from the Server");
         }
-    }
-}
-
-
-public class DrawRay
-{
-    static Material lineMat;
-
-    [RuntimeInitializeOnLoadMethod]
-    static void OnRuntimeMethodLoad()
-    {
-        lineMat = Resources.Load<Material>("Materials/Line/LineSprite");
-    }
-
-    public static void DrawLine(Vector2 start, float angle, float length, Color color, float duration = 0.1f)
-    {
-        // The angle in radians
-        var lineStart = new Vector3(start.x, start.y, -1);
-        var lineEnd = lineStart + (new Vector3(Mathf.Cos(angle) * length, Mathf.Sin(angle) * length, -1));
-
-        MakeLine(lineStart, lineEnd, color, duration);
-    }
-    
-    public static void DrawLine(Vector2 start, Vector2 end, Color color, float duration = 0.1f)
-    {
-        var lineStart = new Vector3(start.x, start.y, -1);
-        var lineEnd = new Vector3(end.x, end.y, -1);
-
-        MakeLine(lineStart, lineEnd, color, duration);
-    }
-
-    private static void MakeLine(Vector3 lineStart, Vector3 lineEnd, Color color, float duration)
-    {
-        GameObject myLine = new GameObject();
-        myLine.transform.position = lineStart;
-        LineRenderer lr = myLine.AddComponent<LineRenderer>();
-
-        lr.material = lineMat;
-        lr.startColor = color;
-        lr.endColor = color;
-
-        lr.startWidth = 0.03f;
-        lr.endWidth = 0.03f;
-
-        lr.SetPosition(0, lineStart);
-        lr.SetPosition(1, lineEnd);
-
-        lr.sortingLayerName = "Debug";
-        GameObject.Destroy(myLine, duration);
     }
 }
 

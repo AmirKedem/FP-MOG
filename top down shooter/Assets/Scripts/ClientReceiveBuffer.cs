@@ -6,7 +6,6 @@ using UnityEngine;
 
 public class ClientReceiveBuffer : MyStopWatch
 {
-
     // The desierd gap between the last received snapshot to the frame that we interpolate towards 
     // that means the if the gap is 2 we try to be 2 ticks back from current tick (at least).
 
@@ -16,26 +15,35 @@ public class ClientReceiveBuffer : MyStopWatch
     // prev tick = 13;   // var prevState = snapshotBuffer[snapshotBuffer.Count - 2 - gap]; 
     // next tick = 14;   // var prevState = snapshotBuffer[snapshotBuffer.Count - 1 - gap]; 
 
+    const int bufferLength = 10;
+
     const int snapshotDesiredGap = 5;
     int snapshotGap = -2;
 
     float time = 0;
-    float lerpTimeFactorOrigin;
     float lerpTimeFactor;
-    float speed = 1;
 
     long now;
     long lastTimeCallTime;
+
+    long lastReceiveTime; // for jitter measurement
+
+    int lastTickUsed = 0;
+
+
+    FloatRollingAverage jitter;
 
     List<PlayerState> playerStates;
     CircularList<WorldState> snapshotBuffer;
 
     public ClientReceiveBuffer(float ticksPerSecond) : base()
     {
-        lerpTimeFactorOrigin = (1f / ticksPerSecond) * 1000f; // In ms.
-        lerpTimeFactor = (1f / ticksPerSecond) * 1000f; // In ms.
-        
-        snapshotBuffer = new CircularList<WorldState>(10);
+        lerpTimeFactor = (1f / ticksPerSecond) * 1000f;  // In ms.
+
+        jitter = new FloatRollingAverage((int) ticksPerSecond * 3);  // the jitter in 3 second
+        lastReceiveTime = NowInTicks;
+
+        snapshotBuffer = new CircularList<WorldState>(bufferLength);
         playerStates = new List<PlayerState>();
     }
 
@@ -44,6 +52,12 @@ public class ClientReceiveBuffer : MyStopWatch
         lock (snapshotBuffer)
         {
             snapshotBuffer.Add(snapshot);
+            
+            float deltaTime = (NowInTicks - lastReceiveTime) / (float) this.m_FrequencyMS;
+            jitter.Update(deltaTime);
+            lastReceiveTime = NowInTicks;
+            //Debug.Log("AVG: " + jitter.average + " stdDeviation: " + jitter.stdDeviation);
+
             if (snapshotGap >= snapshotBuffer.Count - 2)
             {
                 Reset();
@@ -60,7 +74,6 @@ public class ClientReceiveBuffer : MyStopWatch
         WorldState prevState;
         WorldState nextState;
 
-        lerpTimeFactor = lerpTimeFactorOrigin * speed;
         lock (snapshotBuffer)
         {
             // If we don't have enough snapshots to interpolate in between we simply set the state to the oldest received frame.
@@ -68,9 +81,17 @@ public class ClientReceiveBuffer : MyStopWatch
             {
                 time = 0;
                 lastTimeCallTime = NowInTicks;
+
+                if (snapshotBuffer.Count > 0)
+                {
+                    lastTickUsed = snapshotBuffer[snapshotBuffer.HeadIndex].serverTickSeq;
+                }
+                
                 return GetFirst();
             }
 
+            // When we first capture a packet we save the received time and from then on we playout the snapshots from the server
+            // in constant intervals these intervals are equal the server tick rate, i.e, the lerpTimeFactor.
             if (time >= lerpTimeFactor)
             {
                 time %= lerpTimeFactor;
@@ -85,65 +106,39 @@ public class ClientReceiveBuffer : MyStopWatch
                 }
             }
 
-            /*
-            // Now we check if the snapshot gap is vaild and we are not interpolating too fast or too slow.
-            if (snapshotGap < 1)
-            {
-                snapshotGap = snapshotDesiredGap;
-                time = 0;
-            }
-            else if (snapshotGap > 9)
-            {
-                snapshotGap = snapshotDesiredGap;
-                time = 0;
-            }
-            */
+            // Track time (using the base class stopwatch [inheritance]) 
 
-            /*
-            Debug.Log("interp value: " + time / lerpTimeFactor);
-            foreach (var s in prevState.playersState)
-            {
-                Debug.Log(s.playerId + ", " + s.pos);
-            }
+            // calculate delta time
+            now = this.NowInTicks;
+            float deltaTime = (now - lastTimeCallTime) / ((float)this.m_FrequencyMS);
+            lastTimeCallTime = this.NowInTicks;
+            // Advance time by the delta time between function calls.
+            time += deltaTime;
 
-            foreach (var s in playerStates)
-            {
-                Debug.Log(s.playerId + ", " + s.pos);
-            }
-
-            foreach (var s in nextState.playersState)
-            {
-                Debug.Log(s.playerId + ", " + s.pos);
-            }
-            */
+            // Interpolation 
 
             //Debug.Log(snapshotGap);
 
             //Debug.Log("index of prev state: " + (snapshotBuffer.Count - 2 - snapshotGap));
             //Debug.Log("index of next state: " + (snapshotBuffer.Count - 1 - snapshotGap));
-            //Debug.Log("interpolation rate: " + lerpTimeFactor);
 
-            try
+            prevState = snapshotBuffer[snapshotBuffer.Count - 2 - snapshotGap];
+            nextState = snapshotBuffer[snapshotBuffer.Count - 1 - snapshotGap];
+
+            if (prevState.serverTickSeq < lastTickUsed)
             {
-                prevState = snapshotBuffer[snapshotBuffer.Count - 2 - snapshotGap];
-                nextState = snapshotBuffer[snapshotBuffer.Count - 1 - snapshotGap];
-            } 
-            catch
-            {
-                return GetFirst();
+                // When we return null we basically don't render anything new
+                // so the last rendered snapshot or tick will still be displayed.
+                return null;
             }
+
+            lastTickUsed = prevState.serverTickSeq;
 
             //Debug.Log("latest State: " + snapshotBuffer[snapshotBuffer.Count - 1].serverTickSeq + " prevState: " + prevState.serverTickSeq + " nextState: " + nextState.serverTickSeq);
         }
 
+        // This function returns the value and put it in the playerStates variable
         PlayerState.Interp(prevState.playersState, nextState.playersState, time/lerpTimeFactor, ref playerStates);
-
-        now = this.NowInTicks;
-        float deltaTime = (now - lastTimeCallTime) / ((float)this.m_FrequencyMS * 1000f);
-
-        time += deltaTime * 1000f;
-
-        lastTimeCallTime = this.NowInTicks;
 
         // Since we might render the same tick twice (depends on the ratio between server tick rate and client tick rate)
         // after using the raystates which are a one-off action so they happen only once therefore we take the rayStates and then clear the field
@@ -160,6 +155,9 @@ public class ClientReceiveBuffer : MyStopWatch
         {
             var snapshot = snapshotBuffer[snapshotBuffer.Count - 1];
 
+            if (snapshot == null)
+                return null;
+
             return GetTupleFromSnapshot(snapshot);
         }
     }
@@ -169,6 +167,9 @@ public class ClientReceiveBuffer : MyStopWatch
         lock (snapshotBuffer)
         {
             var snapshot = snapshotBuffer[snapshotBuffer.HeadIndex];
+
+            if (snapshot == null)
+                return null;
 
             return GetTupleFromSnapshot(snapshot);
         }
@@ -191,10 +192,6 @@ public class ClientReceiveBuffer : MyStopWatch
 
     public void Reset()
     {
-        time = 0;
         snapshotGap = snapshotDesiredGap;
-        speed = 1;
-        lerpTimeFactor = lerpTimeFactorOrigin;
     }
-
 }

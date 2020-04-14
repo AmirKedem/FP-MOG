@@ -15,7 +15,6 @@ public class LagCompensationModule : MonoBehaviour
     public void Init(Player attachedPlayer)
     {
         this.attachedPlayer = attachedPlayer;
-
         // Load the player prefab named "PlayerPrefabCopy" located in any Resources
         // folder in your project's Assets folder.
         GameObject copyPrefab = Resources.Load("Prefabs/PlayerPrefabCopy") as GameObject;
@@ -43,7 +42,6 @@ public class LagCompensationModule : MonoBehaviour
     public RayState FireShotWithBacktrack(int tickAck)
     {
         // Debug.Log("Player " + attachedPlayer.playerId + " Fire");
-        
         float zAngle = attachedPlayer.rb.rotation * Mathf.Deg2Rad;
         Vector2 headingDir = new Vector2(Mathf.Cos(zAngle), Mathf.Sin(zAngle));
         Vector2 firePoint = attachedPlayer.firePointGO.transform.position;
