@@ -622,7 +622,6 @@ public class PlayerInputHandler {
         }
     }
 
-
     private void SetMouseDir()
     {
         Vector2 mousePos = cam.ScreenToWorldPoint(Input.mousePosition);

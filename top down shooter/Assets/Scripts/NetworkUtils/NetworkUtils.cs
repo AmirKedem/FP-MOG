@@ -5,7 +5,6 @@ using UnityEngine;
 
 public static class NetworkUtils
 {
-
     // ------ Serialize ------
     public static void SerializeByte(List<byte> byteList, byte data)
     {

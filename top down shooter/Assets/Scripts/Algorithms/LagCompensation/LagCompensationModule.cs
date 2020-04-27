@@ -4,10 +4,6 @@
 public class LagCompensationModule : MonoBehaviour
 {
     int lagCompensationMask;
-    float tickLength;
-
-    [SerializeField]
-    int bufferLengthInMS = 800; // 200 ms back in time, 200 ms history of the player transform
     BacktrackBuffer backtrackObj;
 
     Player attachedPlayer;
@@ -22,8 +18,13 @@ public class LagCompensationModule : MonoBehaviour
         lagCompensationMask = (1 << LayerMask.NameToLayer("LagCompensation"));
         lagCompensationMask |= (1 << LayerMask.NameToLayer("Map"));
 
-        tickLength = Time.deltaTime * 1000; // In milliseconds
-        int bufferLength = Mathf.CeilToInt(bufferLengthInMS / tickLength);
+        // Amount of executed ticks per second
+        ushort TickRate = ServerSettings.tickRate;
+        // 200 ms back in time, 200 ms history of the player transform
+        ushort BackTrackingBufferTimeMS = ServerSettings.backTrackingBufferTimeMS;
+
+        float tickLength = 1000f / TickRate; // In milliseconds
+        int bufferLength = Mathf.CeilToInt(BackTrackingBufferTimeMS / tickLength);
         backtrackObj = new BacktrackBuffer(bufferLength, attachedPlayer, copyPrefab);
     }
 

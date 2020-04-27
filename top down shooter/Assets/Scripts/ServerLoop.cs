@@ -70,7 +70,6 @@ public struct GameTime
 */
 
 
-
 public static class StopWacthTime
 {
     static System.Diagnostics.Stopwatch stopWatch;
@@ -86,9 +85,10 @@ public static class StopWacthTime
 
 public class ServerLoop
 {
+    static readonly bool LagCompensationFlag = ServerSettings.lagCompensation;
+
     float tickDuration;
     float lastStartTickTime = 0;
-
 
     const int NoMoreEvents = -1;
 
@@ -281,11 +281,18 @@ public class ServerLoop
 
         if (ie.mouseDown == true)
         {
-            FireRayWithLagComp(player, ie.serverTick);
+            if (LagCompensationFlag)
+            {
+                FireRayWithLagComp(player, ie.serverTick);
+            }
+            else
+            {
+                FireRayNoLagComp(player);
+            }
         }
     }
 
-    public void FireRayNoLagComp(Player player, int tickAck)
+    public void FireRayNoLagComp(Player player)
     {
         if (player.playerContainer == null)
             return;

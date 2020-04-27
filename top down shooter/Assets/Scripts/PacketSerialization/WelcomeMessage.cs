@@ -2,17 +2,15 @@
 
 public class WelcomeMessage
 {
-
     public static byte[] Serialize(ushort newPlayerID)
     {
         List<byte> welcomePacket = new List<byte>();
 
         // Send to the connected client his ID.
         NetworkUtils.SerializeUshort(welcomePacket, newPlayerID);
-        NetworkUtils.SerializeUshort(welcomePacket, ServerSettings.ticksPerSecond);
+        NetworkUtils.SerializeUshort(welcomePacket, ServerSettings.tickRate);
 
         return welcomePacket.ToArray();
-
     }
 
     public static void Deserialize(byte[] welcomePacket, out ushort myID, out ushort ticksPerSecond)

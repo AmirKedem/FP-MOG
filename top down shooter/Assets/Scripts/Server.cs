@@ -126,10 +126,9 @@ public class User
 
 public class Server : MonoBehaviour
 {
-    static readonly ushort MaximumPlayers = 3;
-    List<ushort> playerIdList = Enumerable.Range(1, MaximumPlayers).Select(x => (ushort)x).ToList();
+    ushort MaximumPlayers;
+    List<ushort> playerIdList;
     
-
     [SerializeField]
     public GameObject playerPrefab;
 
@@ -156,6 +155,9 @@ public class Server : MonoBehaviour
 
     private void Start()
     {
+        MaximumPlayers = ServerSettings.maxPlayerCount;
+        playerIdList = Enumerable.Range(1, MaximumPlayers).Select(x => (ushort)x).ToList();
+
         serverLoop = new ServerLoop(playerPrefab);
         StartServer();
     }
@@ -268,7 +270,7 @@ public class Server : MonoBehaviour
         IPAddress ipAddress = ServerInfo.ipAddress;
         IPEndPoint localEndPoint = ServerInfo.localEP;
 
-        Console.WriteLine("The server is running  on: " + localEndPoint.Address.ToString() + " : " + localEndPoint.Port.ToString());
+        Console.WriteLine("The server is running at: " + localEndPoint.Address.ToString() + " : " + localEndPoint.Port.ToString());
         Console.WriteLine("Is loopback: " + IPAddress.IsLoopback(localEndPoint.Address));
 
         // Create a TCP/IP socket.  
@@ -296,7 +298,7 @@ public class Server : MonoBehaviour
         List<Socket> Inputs;
         List<Socket> Errors;
 
-        Console.WriteLine("Main Loop");
+        Console.WriteLine("Main Loop Listening");
         InputsOG.Add(listenerSocket);
 
         isRunning = true;
@@ -343,7 +345,7 @@ public class Server : MonoBehaviour
                         } 
                         catch (Exception e)
                         {
-                            Debug.Log("Line 339: key not found");
+                            Debug.Log("Line 346: key not found");
                             Debug.Log(e);
                         }
                     }
@@ -401,6 +403,7 @@ public class Server : MonoBehaviour
 
             if (listenerSocket.Connected)
                 listenerSocket.Shutdown(SocketShutdown.Both);
+
             listenerSocket.Close();
             listenerSocket = null;
         }
