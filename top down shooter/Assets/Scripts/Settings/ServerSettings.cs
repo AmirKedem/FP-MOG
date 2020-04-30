@@ -3,10 +3,10 @@ using UnityEngine;
 
 public class ServerSettings : MonoBehaviour
 {
-    public static ushort maxPlayerCount;
-    public static ushort tickRate;
-    public static bool lagCompensation;
-    public static ushort backTrackingBufferTimeMS;
+    public static ushort maxPlayerCount = 10;
+    public static ushort tickRate = 20;
+    public static bool lagCompensation = true;
+    public static ushort backTrackingBufferTimeMS = 600;
     
     void Awake()
     {

@@ -7,7 +7,6 @@ public class Player : MonoBehaviour
     // Player entity game variables
     [Header("Game variables")]
     [SerializeField] float speedFactor = 3f;
-    [SerializeField] float rotationSpeed = 1f;
 
     // Player network and setup
     [Header("Network variables")]
@@ -23,6 +22,10 @@ public class Player : MonoBehaviour
 
     public List<ServerUserCommand> userCommandList = new List<ServerUserCommand>();
     public List<ServerUserCommand> userCommandBufferList = new List<ServerUserCommand>();
+
+    // DEBUG
+    float lastRecTime = 0f;
+    FloatRollingAverage jitter = new FloatRollingAverage(60 * 2);  // the jitter in 3 second
 
     public void SetPlayerID(ushort id)
     {
@@ -71,7 +74,7 @@ public class Player : MonoBehaviour
         }
     }
 
-    public void ApplyUserCommand(InputEvent ie)
+    public void ApplyInputEvent(InputEvent ie)
     {
         float zAngle = Mathf.Repeat(ie.zAngle, 360);
         rb.rotation = zAngle;
@@ -107,7 +110,14 @@ public class Player : MonoBehaviour
             for (int i = userCommandBufferList.Count - 1; i >= 0; i--)
             {
                 if (userCommandBufferList[i] == null)
+                {
                     userCommandBufferList.RemoveAt(i);
+                }
+                else
+                {
+                    jitter.Update(userCommandBufferList[i].serverRecTime - lastRecTime);
+                    lastRecTime = userCommandBufferList[i].serverRecTime;
+                }
             }
 
             userCommandList.AddRange(userCommandBufferList);
@@ -115,5 +125,8 @@ public class Player : MonoBehaviour
         }
             
         userCommandList.Sort((a, b) => a.serverRecTime.CompareTo(b.serverRecTime));
+
+        // DEBUG Jitter
+        //Debug.Log(jitter.stdDeviation + ", " + jitter.average);
     }
 }

@@ -72,16 +72,18 @@ public struct GameTime
 
 public static class StopWacthTime
 {
-    static System.Diagnostics.Stopwatch stopWatch;
+    static System.Diagnostics.Stopwatch m_StopWatch;
+    static long m_FrequencyMS;
+
     static StopWacthTime()
     {
-        stopWatch = new System.Diagnostics.Stopwatch();
-        stopWatch.Start();
+        m_FrequencyMS = System.Diagnostics.Stopwatch.Frequency / 1000;
+        m_StopWatch = new System.Diagnostics.Stopwatch();
+        m_StopWatch.Start();
     }
 
-    public static float Time { get => stopWatch.ElapsedMilliseconds/1000f; }
+    public static float Time { get => (m_StopWatch.ElapsedTicks / m_FrequencyMS) / 1000f; } // The Time In Seconds
 }
-
 
 public class ServerLoop
 {
@@ -113,6 +115,11 @@ public class ServerLoop
         return wm.snapshot;
     }
 
+    /// <summary>
+    /// Complete mess TODO must debug thoroughly.
+    /// TODO use the debuger and some breakpoints
+    /// </summary>
+    /// <param name="players"></param>
     public void Update(List<Player> players)
     {
         /*
@@ -123,18 +130,20 @@ public class ServerLoop
         
         Take A Snapshot of the updated world
         */
-
         NetworkTick.tickSeq++;
 
         rayStates.Clear();
 
         tickDuration = Time.deltaTime;
-        // Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
+        
         float startTickTime = StopWacthTime.Time;
         float endTickTime = startTickTime + tickDuration;
 
-        // Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
-        // Debug.Log("Tick delta " + (Mathf.RoundToInt((startTickTime - lastStartTickTime)/0.00001f) * 0.00001)) // Drift;
+        Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
+        Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
+        Debug.Log("Tick delta " + (Mathf.RoundToInt((startTickTime - lastStartTickTime) / 0.00001f) * 0.00001)); // Drift;
+
+        float simTimeForCurrTick = 0;
 
         float curTime = startTickTime;
         float minorJump;
@@ -161,7 +170,7 @@ public class ServerLoop
                 {
                     p.MergeWithBuffer();
                 }
-            } 
+            }
             else
             {
                 players.Remove(p);
@@ -171,36 +180,69 @@ public class ServerLoop
         // Simulate Till first event
         // or Till the end Tick Time if there is no event from the clients.
         currEventsTime = GetEventsMinimalTime(players, playerEventIndexes);
-        // Check if empty
         if (currEventsTime == NoMoreEvents)
             minorJump = tickDuration;
         else
             minorJump = (currEventsTime - startTickTime);
 
         if (minorJump > 0)
+        {
+            // DEBUG
+            simTimeForCurrTick += minorJump;
             Physics2D.Simulate(minorJump);
+        }
         else
+        {
             minorJump = 0;
+        }
 
         curTime += minorJump;
-        while (curTime < endTickTime)
+        //while (curTime < endTickTime)
+        while (simTimeForCurrTick < tickDuration)
         {
             // Get all the events with minimal time.
             currUserCommands = GetEvents(players, playerEventIndexes, currEventsTime);
 
             nextEventsTime = GetEventsMinimalTime(players, playerEventIndexes);
 
-            if (nextEventsTime > endTickTime || nextEventsTime == NoMoreEvents)
-                nextEventsTime = endTickTime;
+            // START DEBUGGING
+            // TODO MUST DEBUG HERE 
+            if (currEventsTime == nextEventsTime)
+            {
+                nextEventsTime = NoMoreEvents;
+            }
 
-            minorJump = nextEventsTime - currEventsTime;
+            if (currUserCommands.Count == 0)
+            {
+                nextEventsTime = NoMoreEvents;
+            }
+            
+
+            if (nextEventsTime == NoMoreEvents)
+            {
+                minorJump = tickDuration - simTimeForCurrTick;
+            }
+            else
+            {
+                minorJump = nextEventsTime - currEventsTime;
+            }
+
+            // END DEBUGGING
+
+            if ((simTimeForCurrTick + minorJump) > tickDuration)
+            {
+                minorJump = tickDuration - simTimeForCurrTick;
+            } 
+
             currEventsTime = nextEventsTime;
 
             ApplyUserCommands(currUserCommands);
+            // DEBUG
+            simTimeForCurrTick += minorJump;
             Physics2D.Simulate(minorJump);
             curTime += minorJump;
 
-            // UnityEngine.Debug.Log("Minor Jump " + minorJump);
+            Debug.Log("Minor Jump " + minorJump);
         }
 
         DeleteUsedEvents(players, playerEventIndexes);
@@ -208,6 +250,8 @@ public class ServerLoop
         TakeSnapshot(players, rayStates);
 
         lastStartTickTime = startTickTime;
+
+        Debug.Log("Sim Time for tick: " + NetworkTick.tickSeq + ", " + simTimeForCurrTick + ", delta: " + (simTimeForCurrTick - tickDuration));
     }
 
     private void DeleteUsedEvents(List<Player> players, List<int> playerEventIndexes)
@@ -225,13 +269,12 @@ public class ServerLoop
     public float GetEventsMinimalTime(List<Player> players, List<int> eventsFromIndexes)
     {
         float ret = NoMoreEvents;
-        ServerUserCommand curr;
         if (players.Count == 0)
             return ret;
         
         for (int i = 0; i < eventsFromIndexes.Count; i++)
         {
-            curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
+            ServerUserCommand curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
             if (curr != null)
             {
                 if (curr.serverRecTime < ret || ret == NoMoreEvents)
@@ -247,16 +290,14 @@ public class ServerLoop
     public List<ServerUserCommand> GetEvents(List<Player> players, List<int> eventsFromIndexes, float minimumTime)
     {
         List<ServerUserCommand> ret = new List<ServerUserCommand>();
-
         if (players.Count == 0)
             return ret;
 
-        ServerUserCommand curr;
         for (int i = 0; i < players.Count; i++)
         {
-            curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
+            ServerUserCommand curr = players[i].userCommandList.ElementAtOrDefault(eventsFromIndexes[i]);
             // If there is an event and it equals to the minimal time then that client event needs to be played.
-            if (curr != null && curr.serverRecTime == minimumTime)
+            if (curr != default(ServerUserCommand) && curr.serverRecTime == minimumTime)
             {
                 ret.Add(curr);
                 eventsFromIndexes[i]++;
@@ -277,7 +318,7 @@ public class ServerLoop
         if (player == null || player.playerContainer == null)
             return;
 
-        player.ApplyUserCommand(ie);
+        player.ApplyInputEvent(ie);
 
         if (ie.mouseDown == true)
         {

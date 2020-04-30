@@ -11,6 +11,9 @@ public class ConfigManager : MonoBehaviour
 
     private void Awake()
     {
+    #if UNITY_EDITOR
+        return;
+    #endif
         Load();
     }
 
