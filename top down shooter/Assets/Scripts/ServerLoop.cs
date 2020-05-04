@@ -2,74 +2,6 @@
 using System.Linq;
 using UnityEngine;
 
-/*
-public struct GameTime
-{
-    /// <summary>Number of ticks per second.</summary>
-    public int tickRate
-    {
-        get { return m_tickRate; }
-        set
-        {
-            m_tickRate = value;
-            tickInterval = 1.0f / m_tickRate;
-        }
-    }
-
-    /// <summary>Length of each world tick at current tickrate, e.g. 0.0166s if ticking at 60fps.</summary>
-    public float tickInterval { get; private set; }     // Time between ticks
-    public int tick;                    // Current tick   
-    public float tickDuration;          // Duration of current tick
-
-    public GameTime(int tickRate)
-    {
-        this.m_tickRate = tickRate;
-        this.tickInterval = 1.0f / m_tickRate;
-        this.tick = 1;
-        this.tickDuration = 0;
-    }
-
-    public float TickDurationAsFraction
-    {
-        get { return tickDuration / tickInterval; }
-    }
-
-    public void SetTime(int tick, float tickDuration)
-    {
-        this.tick = tick;
-        this.tickDuration = tickDuration;
-    }
-
-    public float DurationSinceTick(int tick)
-    {
-        return (this.tick - tick) * tickInterval + tickDuration;
-    }
-
-    public void AddDuration(float duration)
-    {
-        tickDuration += duration;
-        int deltaTicks = Mathf.FloorToInt(tickDuration * (float)tickRate);
-        tick += deltaTicks;
-        tickDuration = tickDuration % tickInterval;
-    }
-
-    public static float GetDuration(GameTime start, GameTime end)
-    {
-        if (start.tickRate != end.tickRate)
-        {
-            Debug.LogError("Trying to compare time with different tick rates (" + start.tickRate + " and " + end.tickRate + ")");
-            return 0;
-        }
-
-        float result = (end.tick - start.tick) * start.tickInterval + end.tickDuration - start.tickDuration;
-        return result;
-    }
-
-    int m_tickRate;
-}
-*/
-
-
 public static class StopWacthTime
 {
     static System.Diagnostics.Stopwatch m_StopWatch;
@@ -115,11 +47,6 @@ public class ServerLoop
         return wm.snapshot;
     }
 
-    /// <summary>
-    /// Complete mess TODO must debug thoroughly.
-    /// TODO use the debuger and some breakpoints
-    /// </summary>
-    /// <param name="players"></param>
     public void Update(List<Player> players)
     {
         /*
@@ -139,13 +66,12 @@ public class ServerLoop
         float startTickTime = StopWacthTime.Time;
         float endTickTime = startTickTime + tickDuration;
 
-        Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
-        Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
-        Debug.Log("Tick delta " + (Mathf.RoundToInt((startTickTime - lastStartTickTime) / 0.00001f) * 0.00001)); // Drift;
+        // Important debug
+        //Debug.Log("Tick Rate: " + (1.0f / tickDuration) + " [Hz], Tick Duration: " + (tickDuration * 1000) + "[ms]");
+        //Debug.Log("Tick Duration " + tickDuration + " Start: " + startTickTime + " End: " + endTickTime);
+        //Debug.Log("Tick delta " + (Mathf.RoundToInt((startTickTime - lastStartTickTime) / 0.00001f) * 0.00001)); // Drift;
 
         float simTimeForCurrTick = 0;
-
-        float curTime = startTickTime;
         float minorJump;
 
         float currEventsTime;
@@ -196,8 +122,6 @@ public class ServerLoop
             minorJump = 0;
         }
 
-        curTime += minorJump;
-        //while (curTime < endTickTime)
         while (simTimeForCurrTick < tickDuration)
         {
             // Get all the events with minimal time.
@@ -207,6 +131,7 @@ public class ServerLoop
 
             // START DEBUGGING
             // TODO MUST DEBUG HERE 
+            /*
             if (currEventsTime == nextEventsTime)
             {
                 nextEventsTime = NoMoreEvents;
@@ -216,8 +141,7 @@ public class ServerLoop
             {
                 nextEventsTime = NoMoreEvents;
             }
-            
-
+            */
             if (nextEventsTime == NoMoreEvents)
             {
                 minorJump = tickDuration - simTimeForCurrTick;
@@ -237,12 +161,12 @@ public class ServerLoop
             currEventsTime = nextEventsTime;
 
             ApplyUserCommands(currUserCommands);
+
             // DEBUG
+            //Debug.Log("Minor Jump " + minorJump);
+
             simTimeForCurrTick += minorJump;
             Physics2D.Simulate(minorJump);
-            curTime += minorJump;
-
-            Debug.Log("Minor Jump " + minorJump);
         }
 
         DeleteUsedEvents(players, playerEventIndexes);
@@ -251,7 +175,8 @@ public class ServerLoop
 
         lastStartTickTime = startTickTime;
 
-        Debug.Log("Sim Time for tick: " + NetworkTick.tickSeq + ", " + simTimeForCurrTick + ", delta: " + (simTimeForCurrTick - tickDuration));
+        // DEBUG the event loop, make sure we are simulating the same amount of time that pass in realtime
+        // Debug.Log("Sim Time for tick: " + NetworkTick.tickSeq + ", " + simTimeForCurrTick + ", delta: " + (simTimeForCurrTick - tickDuration));
     }
 
     private void DeleteUsedEvents(List<Player> players, List<int> playerEventIndexes)

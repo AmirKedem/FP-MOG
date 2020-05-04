@@ -26,7 +26,7 @@ Therefore, game devs have developed some neat algorithms to make the game experi
 ## Algorithms:
     - Lag Compensation [Done]
     - Client Side Interpolation [Done]
-    - Client Side Prediction
+    - Client Side Prediction [Done]
 
 ![Imgur](https://i.imgur.com/nIhGLDz.gif)
 

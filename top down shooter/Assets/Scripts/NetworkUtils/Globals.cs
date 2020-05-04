@@ -6,7 +6,9 @@ using System.Net.Sockets;
 
 public class Globals
 {
-    /// <summary>method <c>GetLocalIPAddress</c> returns the first local Ethernet IPv4 that has an IPv4 gateway.</summary>
+    /// <summary>
+    /// returns the first local Ethernet IPv4 that has an IPv4 gateway.
+    /// </summary>
     public static IPAddress GetLocalIPAddress()
     {
         var cards = NetworkInterface.GetAllNetworkInterfaces().ToList();

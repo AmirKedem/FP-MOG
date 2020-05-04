@@ -1,0 +1,6 @@
+{
+    "maxPlayerCount": 10,
+    "tickRate": 20,
+    "lagCompensation": true,
+    "backTrackingBufferTimeMS": 600
+}

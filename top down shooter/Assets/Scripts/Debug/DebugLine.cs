@@ -26,7 +26,7 @@ public class DebugLine : MonoBehaviour
         DrawLine(player.position, mouse, Color.red);
     }
 
-    void DrawLine(Vector3 start, Vector3 end, Color color, float duration = 0.15f)
+    void DrawLine(Vector3 start, Vector3 end, Color color, float duration = 0.1f)
     {
         GameObject myLine = new GameObject();
         myLine.transform.position = start;

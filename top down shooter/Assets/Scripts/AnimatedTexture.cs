@@ -10,9 +10,12 @@ public class AnimatedTexture : MonoBehaviour
 
     public void Flash()
     {
-        if (co != null)
-            StopCoroutine(co);
-        co = StartCoroutine(StartFlash());
+        if (this.isActiveAndEnabled)
+        {
+            if (co != null)
+                StopCoroutine(co);
+            co = StartCoroutine(StartFlash());
+        }
     }
 
     IEnumerator StartFlash()

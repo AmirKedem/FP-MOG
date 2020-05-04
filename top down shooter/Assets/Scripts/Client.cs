@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 
 public static class PacketStartTime
@@ -123,17 +124,6 @@ public class ClientReceiveMessage
 
 public class Client : MonoBehaviour
 {
-    [Header("Netcode Toggles")]
-    [SerializeField]
-    bool interpolationFlag = true;
-    [SerializeField]
-    ToggleController interpolationToggle;
-
-    [SerializeField]
-    bool predictionFlag = true;
-    [SerializeField]
-    ToggleController predictionToggle;
-
     [Header("Main Camera (just for debug)")]
     [SerializeField] private Camera cam;
 
@@ -143,7 +133,11 @@ public class Client : MonoBehaviour
     [SerializeField] private GameObject playerLocalRigidbody;
 
     [Header("CSP proxy player")]
-    [SerializeField] private Player predictedPlayer;
+    [SerializeField] private Player predictedPlayer; // the game object that we simulate
+    [SerializeField] private Rigidbody2D smoothedPredictedPlayer; // the game object that is rendered with interpolation on the corrections 
+
+    [SerializeField] private Transform smoothedPredictedPlayerFirePoint; // for nice graphics
+    [SerializeField] private AnimatedTexture smoothedPredictedPlayerMuzzelFlash; // for nice graphics
 
     [Header("Network Panels")]
     [SerializeField] private GameObject networkStatePanel;
@@ -163,6 +157,40 @@ public class Client : MonoBehaviour
     [Header("Game Over Panel")]
     [SerializeField] private GameObject gameOverPanel;
 
+    [Header("Netcode Toggles")]
+    [SerializeField]
+    bool interpolationFlag;
+
+    [SerializeField]
+    bool clientEnableCorrections;
+
+    [SerializeField]
+    bool clientCorrectionSmoothing;
+
+    [SerializeField]
+    bool showRawEntityFlag;
+
+    [Header("The actual toggles scripts")]
+    // This is used to set the booleans according to the inital state of the toggles
+    [SerializeField] Toggle toggle1;
+    [SerializeField] Toggle toggle2;
+    [SerializeField] Toggle toggle3;
+    [SerializeField] Toggle toggle4;
+
+    [Header("The non-predicted entity to show and hide")]
+    [SerializeField]
+    GameObject nonpredictedEntity;
+    
+    // CSP Vars
+    private const int PLAYERBUFFERSIZE = 1024;
+    private InputEvent[] playerInputBuffer; // client stores predicted inputs here
+    private PlayerState[] playerStateBuffer; // client stores predicted moves here
+
+    private int clientLastReceivedStateTick;
+    private Vector2 clientPosError; // the difference between the predicted state result and the server's state
+    private float clientRotError; // the difference between the predicted state result and the server's state
+    
+    // Network Vars
     public static ClientInput ci;
     public static ClientReceiveBuffer snapshotReceiveBuffer;
     public static PlayerInputHandler playerInputHandler;
@@ -171,39 +199,47 @@ public class Client : MonoBehaviour
     private static ushort myID;
     private static ushort ticksPerSecond;
     private static bool received = false;
-    public static Dictionary<int, Player> PlayerFromId = new Dictionary<int, Player>();
-    public static HashSet<int> DisconnectedPlayersIds = new HashSet<int>();
+    public static Dictionary<int, Player> PlayerFromId;
 
     // The client socket
     private ClientReceiveMessage clientReceiveMessage;
     private static Socket clientSock;
     private static bool isConnected = false; // Whethere we are connected or not
 
-    // CSP Addition
-    private const int PLAYERBUFFERSIZE = 1024;
-    private InputEvent[] playerInputBuffer; // client stores predicted inputs here
-    private PlayerState[] playerStateBuffer; // client stores predicted moves here
 
-    public bool client_enable_corrections = true;
-    public bool client_correction_smoothing = true;
-    public bool client_send_redundant_inputs = true;
-    private float client_timer;
-    private uint client_tick_number;
-    private uint client_last_received_state_tick;
-    private Vector2 client_pos_error;
-    private float client_rot_error;
+    public void InitFlagsFromGUI()
+    {
+        interpolationFlag = toggle1.isOn;
+        showRawEntityFlag = toggle2.isOn;
+        clientEnableCorrections = toggle3.isOn;
+        clientCorrectionSmoothing = toggle4.isOn;
 
-    public void FlipInterpolationFlag()
+        nonpredictedEntity.SetActive(showRawEntityFlag);
+    } 
+
+    public void Toggle1FlipInterpolation()
     {
         interpolationFlag = !interpolationFlag;
-        if (snapshotReceiveBuffer != null)        
+        if (snapshotReceiveBuffer != null)
             snapshotReceiveBuffer.Reset();
-        
+
     }
 
-    public void FlipPredictionFlag()
+    public void Toggle2FlipEnableCorrections()
     {
-        predictionFlag = !predictionFlag;
+        clientEnableCorrections = !clientEnableCorrections;
+    }
+
+    public void Toggle3FlipCorrectionSmoothing()
+    {
+        clientCorrectionSmoothing = !clientCorrectionSmoothing;
+    }
+
+    public void Toggle4FlipShowRawEntity()
+    {
+        showRawEntityFlag = !showRawEntityFlag;
+
+        nonpredictedEntity.SetActive(showRawEntityFlag);
     }
 
     private void ClientConnectCallback(IAsyncResult ar)
@@ -349,11 +385,29 @@ public class Client : MonoBehaviour
         }
     }
 
+    private void LocalPlayerInit()
+    {
+        // Take the local player (Player prefab) and use it.
+        var tmpPlayer = playerLocalContainer.GetComponent<Player>();
+        tmpPlayer.SetPlayerID((ushort)myID);
+        // The replicated gameobjects shouldn't be simulated, 
+        // although this is the local player this is not the predicted player
+        // only the predicted player has rb.simulated turned on that way
+        // when I use Physics.Simulate only the predicted body will move.
+        tmpPlayer.rb.simulated = false;
+
+        // Add myself to the list of players.
+        PlayerFromId.Add(myID, tmpPlayer);
+        Debug.Log("Logged in Setup complete");
+        received = true;
+    }
+
     private void ProcessWelcomeMessage(byte[] data)
     {
         // Connection Message
         // Here we get our own ID.
         WelcomeMessage.Deserialize(data, out myID, out ticksPerSecond);
+        Debug.Log("Welcome message received");
 
         // Create the buffer on recipt with the static server send rate.
         snapshotReceiveBuffer = new ClientReceiveBuffer(ticksPerSecond);
@@ -361,8 +415,10 @@ public class Client : MonoBehaviour
         Debug.Log("My ID Is: " + myID);
         Debug.Log("Server Send Rate: " + ticksPerSecond);
 
-        Debug.Log("Logged In.");
-        received = true;
+        UnityThread.executeInUpdate(() =>
+        {
+            LocalPlayerInit();
+        });
     }
 
     private void ProcessWorldStateMessage(byte[] data)
@@ -425,28 +481,33 @@ public class Client : MonoBehaviour
         cam = Camera.main;
         statisticsModule = new Statistics();
 
-        var localPlayerFirePoint = playerLocalContainer.GetComponent<Player>().firePointGO;
-        playerInputHandler = new PlayerInputHandler(playerLocalRigidbody.transform, localPlayerFirePoint.transform, cam);
+        PlayerFromId = new Dictionary<int, Player>();
+
+        playerInputHandler = new PlayerInputHandler(
+            cam: cam,
+            localPlayerTransform: predictedPlayer.rb.transform, 
+            localPlayerFirePointTransform: smoothedPredictedPlayerFirePoint, 
+            muzzelFlash: smoothedPredictedPlayerMuzzelFlash
+        );
 
         ci = new ClientInput();
+        InitFlagsFromGUI();
 
-        interpolationFlag = interpolationToggle.isOn;
-        predictionFlag = predictionToggle.isOn;
-
-        // CSP Additions
-        client_timer = 0.0f;
+        // CSP Init
         playerStateBuffer = new PlayerState[PLAYERBUFFERSIZE];
         playerInputBuffer = new InputEvent[PLAYERBUFFERSIZE];
 
-        client_pos_error = Vector2.zero;
-        client_rot_error = 0f;
+        clientPosError = Vector2.zero;
+        clientRotError = 0f;
 
         UnityThread.initUnityThread();
     }
 
     private void RenderServerTick(List<PlayerState> playerStates, List<RayState> rayStates)
     {
-        DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
+        // Every time we encounter an ID when we set the state we remove it from this hashset and then 
+        // disconnect all the players that left in the hashset.
+        HashSet<int> DisconnectedPlayersIds = new HashSet<int>(PlayerFromId.Keys);
 
         foreach (PlayerState ps in playerStates)
         {
@@ -474,11 +535,10 @@ public class Client : MonoBehaviour
         foreach (RayState rs in rayStates)
         {
             PlayerFromId[rs.owner].FromState(rs);
-            // Debug
-            // DrawRay.DrawLine(rs.pos, rs.zAngle, 100f, Color.red, 0.5f);
         }
 
-        // Only the clients that were in the dict beforehand but got removed is here (since they disconnected).
+        // Only the clients that were in the hashset beforehand but got removed is here 
+        // (since they are disconnected they are no longer in the snapshots).
         foreach (int playerId in DisconnectedPlayersIds)
         {
             if (playerId == myID)
@@ -506,130 +566,6 @@ public class Client : MonoBehaviour
         }
     }
 
-    /*
-     // client update
-        Rigidbody client_rigidbody = this.client_player.GetComponent<Rigidbody>();
-        float dt = Time.fixedDeltaTime;
-        float client_timer = this.client_timer;
-        uint client_tick_number = this.client_tick_number;
-
-        client_timer += Time.deltaTime;
-        while (client_timer >= dt)
-        {
-            client_timer -= dt;
-
-            uint buffer_slot = client_tick_number % c_client_buffer_size;
-
-            // sample and store inputs for this tick
-            Inputs inputs;
-            inputs.up = Input.GetKey(KeyCode.W);
-            inputs.down = Input.GetKey(KeyCode.S);
-            inputs.left = Input.GetKey(KeyCode.A);
-            inputs.right = Input.GetKey(KeyCode.D);
-            inputs.jump = Input.GetKey(KeyCode.Space);
-            this.client_input_buffer[buffer_slot] = inputs;
-
-            // store state for this tick, then use current state + input to step simulation
-            this.ClientStoreCurrentStateAndStep(
-                ref this.client_state_buffer[buffer_slot], 
-                client_rigidbody, 
-                inputs, 
-                dt);
-
-            // send input packet to server
-            InputMessage input_msg;
-            input_msg.delivery_time = Time.time + this.latency;
-            input_msg.start_tick_number = this.client_send_redundant_inputs ? this.client_last_received_state_tick : client_tick_number;
-            input_msg.inputs = new List<Inputs>();
-
-            for (uint tick = input_msg.start_tick_number; tick <= client_tick_number; ++tick)
-            {
-                input_msg.inputs.Add(this.client_input_buffer[tick % c_client_buffer_size]);
-            }
-            this.server_input_msgs.Enqueue(input_msg);
-
-            ++client_tick_number;
-        }
-        
-        if (this.ClientHasStateMessage())
-        {
-            StateMessage state_msg = this.client_state_msgs.Dequeue();
-            while (this.ClientHasStateMessage()) // make sure if there are any newer state messages available, we use those instead
-            {
-                state_msg = this.client_state_msgs.Dequeue();
-            }
-
-            this.client_last_received_state_tick = state_msg.tick_number;
-
-            this.proxy_player.transform.position = state_msg.position;
-            this.proxy_player.transform.rotation = state_msg.rotation;
-
-            if (this.client_enable_corrections)
-            {
-                uint buffer_slot = state_msg.tick_number % c_client_buffer_size;
-                Vector3 position_error = state_msg.position - this.client_state_buffer[buffer_slot].position;
-                float rotation_error = 1.0f - Quaternion.Dot(state_msg.rotation, this.client_state_buffer[buffer_slot].rotation);
-
-                if (position_error.sqrMagnitude > 0.0000001f ||
-                    rotation_error > 0.00001f)
-                {
-                    Debug.Log("Correcting for error at tick " + state_msg.tick_number + " (rewinding " + (client_tick_number - state_msg.tick_number) + " ticks)");
-                    // capture the current predicted pos for smoothing
-                    Vector3 prev_pos = client_rigidbody.position + this.client_pos_error;
-                    Quaternion prev_rot = client_rigidbody.rotation * this.client_rot_error;
-
-                    // rewind & replay
-                    client_rigidbody.position = state_msg.position;
-                    client_rigidbody.rotation = state_msg.rotation;
-                    client_rigidbody.velocity = state_msg.velocity;
-                    client_rigidbody.angularVelocity = state_msg.angular_velocity;
-
-                    uint rewind_tick_number = state_msg.tick_number;
-                    while (rewind_tick_number < client_tick_number)
-                    {
-                        buffer_slot = rewind_tick_number % c_client_buffer_size;
-                        this.ClientStoreCurrentStateAndStep(
-                            ref this.client_state_buffer[buffer_slot],
-                            client_rigidbody,
-                            this.client_input_buffer[buffer_slot],
-                            dt);
-
-                        ++rewind_tick_number;
-                    }
-
-                    // if more than 2ms apart, just snap
-                    if ((prev_pos - client_rigidbody.position).sqrMagnitude >= 4.0f)
-                    {
-                        this.client_pos_error = Vector3.zero;
-                        this.client_rot_error = Quaternion.identity;
-                    }
-                    else
-                    {
-                        this.client_pos_error = prev_pos - client_rigidbody.position;
-                        this.client_rot_error = Quaternion.Inverse(client_rigidbody.rotation) * prev_rot;
-                    }
-                }
-            }
-        }
-
-        this.client_timer = client_timer;
-        this.client_tick_number = client_tick_number;
-
-        if (this.client_correction_smoothing)
-        {
-            this.client_pos_error *= 0.9f;
-            this.client_rot_error = Quaternion.Slerp(this.client_rot_error, Quaternion.identity, 0.1f);
-        }
-        else
-        {
-            this.client_pos_error = Vector3.zero;
-            this.client_rot_error = Quaternion.identity;
-        }
-        
-        this.smoothed_client_player.transform.position = client_rigidbody.position + this.client_pos_error;
-        this.smoothed_client_player.transform.rotation = client_rigidbody.rotation * this.client_rot_error;
-    */
-
     private void StoreCurrentStateAndSimulate(ref PlayerState currentState, Player localPlayer, InputEvent inputs, float dt)
     {
         var playerRb = localPlayer.rb;
@@ -649,7 +585,16 @@ public class Client : MonoBehaviour
         if (!isConnected || !received)
             return;
 
-        // client update
+        ///
+        /// Summary:
+        ///   - Get the inputs from the player
+        ///   - Store the inputs for CSP rollback system
+        ///   - Apply the inputs on a local gameobject (CSP)
+        ///   - Simulate the physics simulation by the time between update function calls (Time.deltaTime)
+        ///   - Send the inputs to the server 
+        ///   - Increment Client Tick 
+        ///
+
         float dt = Time.deltaTime;
         int buffer_slot = NetworkTick.tickSeq % PLAYERBUFFERSIZE;
 
@@ -671,119 +616,130 @@ public class Client : MonoBehaviour
         );
 
         ClientTick();
-        
 
+        ///
+        /// here is the main code for the CSP netcode algorithm
+        /// after we apply the inputs we need to check if our past predictions were correct 
+        /// the corrections will happen after 1/2 RTT 
+        /// 
+        /// Summary:
+        ///   - Check if we got a new tick that we haven't encountered before
+        ///   - if so, we compare our predicted result for that tick and the server's state for the same client tick.
+        ///   - if there is a big difference we rollback to the latest server tick and use it as a baseline
+        ///   since we now what client tick that baseline contains we need to only apply the inputs that were pressed after
+        ///   that tick, i.e, the tick contains all the client's inputs up until that tick ACK number.
+        ///   - rollback, set the player's state to the baseline and reapply the inputs to get a better player state result
+        ///   - smooth the transition between the predicted state to the predicted state after the rollback.
+        ///
 
-
-
-
-        /*
-        
-        if (this.ClientHasStateMessage())
+        WorldState latestReceivedWS = snapshotReceiveBuffer.GetLatestWorldState();
+        if ((latestReceivedWS != null) && (latestReceivedWS.serverTickSeq > clientLastReceivedStateTick))
         {
-            StateMessage state_msg = this.client_state_msgs.Dequeue();
-            while (this.ClientHasStateMessage()) // make sure if there are any newer state messages available, we use those instead
+            // here we put only this client's entity state since client prediction is only performed on the local player.
+            PlayerState latestPlayerState = new PlayerState();
+            foreach (var ps in latestReceivedWS.playersState)
             {
-                state_msg = this.client_state_msgs.Dequeue();
+                if (ps.playerId == myID)
+                {
+                    latestPlayerState = ps;
+                }
             }
 
-            this.client_last_received_state_tick = state_msg.tick_number;
+            clientLastReceivedStateTick = latestReceivedWS.serverTickSeq;
 
-            this.proxy_player.transform.position = state_msg.position;
-            this.proxy_player.transform.rotation = state_msg.rotation;
+            //this.predictedPlayer.FromState(latestPlayerState);
+            //this.proxy_player.transform.position = latestPlayerState.pos;
+            //this.proxy_player.transform.rotation = latestPlayerState.zAngle;
 
-            if (this.client_enable_corrections)
+            if (clientEnableCorrections)
             {
-                uint buffer_slot = state_msg.tick_number % c_client_buffer_size;
-                Vector3 position_error = state_msg.position - this.client_state_buffer[buffer_slot].position;
-                float rotation_error = 1.0f - Quaternion.Dot(state_msg.rotation, this.client_state_buffer[buffer_slot].rotation);
+                buffer_slot = latestReceivedWS.clientTickAck % PLAYERBUFFERSIZE;
+                PlayerState predicted_state = this.playerStateBuffer[buffer_slot];
 
-                if (position_error.sqrMagnitude > 0.0000001f ||
-                    rotation_error > 0.00001f)
+                // Calc the difference between the server's state and this client's predicted state
+                Vector2 position_error = latestPlayerState.pos - predicted_state.pos;
+                float rotation_error = Mathf.DeltaAngle(latestPlayerState.zAngle, predicted_state.zAngle);
+
+                // If the difference is large enough so its noticable we rollback to the latest state and apply the inputs from that point onwards,
+                // we know by the client ack of the latest world state which inputs were already used in the state and we can then apply only 
+                // the inputs after the latest acked inputs.
+                if (position_error.sqrMagnitude > 0.0001f || rotation_error > 0.01f)
                 {
-                    Debug.Log("Correcting for error at tick " + state_msg.tick_number + " (rewinding " + (client_tick_number - state_msg.tick_number) + " ticks)");
+                    //Debug.Log("Correcting for error at tick " + state_msg.tick_number + " (rewinding " + (client_tick_number - state_msg.tick_number) + " ticks)");
+                    Debug.Log("Correcting for error at tick " + latestReceivedWS.clientTickAck + " (rewinding " + (NetworkTick.tickSeq - latestReceivedWS.clientTickAck) + " ticks)");
                     // capture the current predicted pos for smoothing
-                    Vector3 prev_pos = client_rigidbody.position + this.client_pos_error;
-                    Quaternion prev_rot = client_rigidbody.rotation * this.client_rot_error;
+                    Vector2 prev_pos = predictedPlayer.rb.position;
+                    float prev_rot = predictedPlayer.rb.rotation;
 
                     // rewind & replay
-                    client_rigidbody.position = state_msg.position;
-                    client_rigidbody.rotation = state_msg.rotation;
-                    client_rigidbody.velocity = state_msg.velocity;
-                    client_rigidbody.angularVelocity = state_msg.angular_velocity;
+                    predictedPlayer.FromState(latestPlayerState);
 
-                    uint rewind_tick_number = state_msg.tick_number;
-                    while (rewind_tick_number < client_tick_number)
+                    int rewind_tick_number = latestReceivedWS.clientTickAck;
+                    while (rewind_tick_number < NetworkTick.tickSeq)
                     {
-                        buffer_slot = rewind_tick_number % c_client_buffer_size;
-                        this.ClientStoreCurrentStateAndStep(
-                            ref this.client_state_buffer[buffer_slot],
-                            client_rigidbody,
-                            this.client_input_buffer[buffer_slot],
-                            dt);
+                        buffer_slot = rewind_tick_number % PLAYERBUFFERSIZE;
+                        StoreCurrentStateAndSimulate(
+                            currentState: ref playerStateBuffer[buffer_slot],
+                            localPlayer: this.predictedPlayer,
+                            inputs: playerInputBuffer[buffer_slot],
+                            dt: dt
+                        );
 
-                        ++rewind_tick_number;
+                        rewind_tick_number++;
                     }
 
-                    // if more than 2ms apart, just snap
-                    if ((prev_pos - client_rigidbody.position).sqrMagnitude >= 4.0f)
+                    
+                    // if more than 2ms apart, just snap, otherwise interpolate 
+                    if ((prev_pos - predictedPlayer.rb.position).sqrMagnitude >= Mathf.Pow(2.0f,2))
                     {
-                        this.client_pos_error = Vector3.zero;
-                        this.client_rot_error = Quaternion.identity;
+                        this.clientPosError = Vector2.zero;
+                        this.clientRotError = 0;
                     }
                     else
                     {
-                        this.client_pos_error = prev_pos - client_rigidbody.position;
-                        this.client_rot_error = Quaternion.Inverse(client_rigidbody.rotation) * prev_rot;
+                        // the difference between the prev state (the predicted state) and the curretn state (after rollback, the correct state).
+                        this.clientPosError = prev_pos - predictedPlayer.rb.position;
+                        this.clientRotError = prev_rot - predictedPlayer.rb.rotation;
                     }
+                    
                 }
             }
         }
 
-        this.client_timer = client_timer;
-        this.client_tick_number = client_tick_number;
-
-        if (this.client_correction_smoothing)
+        
+        if (this.clientCorrectionSmoothing)
         {
-            this.client_pos_error *= 0.9f;
-            this.client_rot_error = Quaternion.Slerp(this.client_rot_error, Quaternion.identity, 0.1f);
+            this.clientPosError = Vector2.Lerp(this.clientPosError, Vector2.zero, 0.1f);
+            this.clientRotError = Mathf.LerpAngle(this.clientRotError, 0, 0.1f);
         }
         else
         {
-            this.client_pos_error = Vector3.zero;
-            this.client_rot_error = Quaternion.identity;
+            this.clientPosError = Vector2.zero;
+            this.clientRotError = 0;
         }
 
-        this.smoothed_client_player.transform.position = client_rigidbody.position + this.client_pos_error;
-        this.smoothed_client_player.transform.rotation = client_rigidbody.rotation * this.client_rot_error;
+        smoothedPredictedPlayer.position = predictedPlayer.rb.position + this.clientPosError;
+        smoothedPredictedPlayer.rotation = predictedPlayer.rb.rotation + this.clientRotError;
 
-        */
+        ///
+        /// Summary:
+        ///   Up until this part all the code was only related to this client entity, but since its a multiplayer game
+        ///   there is also enemies, in this part we render the enemies, deal with disconnections, 
+        ///   and also applying client-side interpolation and smooth playout de-jitter buffer on the server's snapshots.
+        ///   
+        ///   Most of the work here is actually done by the client's snapshot receive buffer, by these two functions
+        ///   snapshotReceiveBuffer.Interpolate();
+        ///   snapshotReceiveBuffer.GetLast();
+        ///   
+        ///   The render tick funtion handles the disconnections as well as setting the state of the appropriate game objects
+        ///   we get the snapshot and render it, depends on the settings we either interpolate between the snapshots 
+        ///   with the de-jitter playout buffer which adds additional delay on top the interpolation delay,
+        ///   or, we simply display the latest received snapshot.
+        ///
 
-
-
-
-
-        // TODO move this part to the welcome message
-        // Here we deal with the networking part
-        if (!PlayerFromId.ContainsKey(myID))
-        {
-            if (received)
-            {
-                // Take the local player (Player prefab) and use it.
-                var tmpPlayer = playerLocalContainer.GetComponent<Player>();
-                tmpPlayer.SetPlayerID((ushort)myID);
-                // The replicated gameobjects shouldn't be simulated, 
-                // although this is the local player this is not the predicted player
-                // only the predicted player has rb.simulated turned on that way
-                // when I use Physics.Simulate only the predicted body will move.
-                tmpPlayer.rb.simulated = false;
-
-                // Add myself to the list of players.
-                PlayerFromId.Add(myID, tmpPlayer);
-                Debug.Log("Logged in Setup complete");
-            }
-        }
-        else
+        // We start rendering ticks only after we initialized the local player which happens only after we get our ID from
+        // the welcome message at the start of the game.
+        if (received)
         {
             Tuple<List<PlayerState>, List<RayState>> snapshot;
             if (interpolationFlag == true)
@@ -800,7 +756,6 @@ public class Client : MonoBehaviour
         }
     }
 
-   
     private void OnEscapeKeyDown()
     {
         Disconnect();
@@ -832,6 +787,7 @@ public class Client : MonoBehaviour
 
 public class PlayerInputHandler {
 
+    AnimatedTexture muzzelFlash;
     Transform localPlayerTransform;
     Transform localPlayerFirePointTransform;
     Camera cam;
@@ -840,11 +796,12 @@ public class PlayerInputHandler {
     bool mouseDown;
     byte pressedKeys;
 
-    public PlayerInputHandler(Transform localPlayerTransform, Transform localPlayerFirePointTransform, Camera cam)
+    public PlayerInputHandler(Camera cam, Transform localPlayerTransform, Transform localPlayerFirePointTransform, AnimatedTexture muzzelFlash)
     {
+        this.cam = cam;
         this.localPlayerTransform = localPlayerTransform;
         this.localPlayerFirePointTransform = localPlayerFirePointTransform;
-        this.cam = cam;
+        this.muzzelFlash = muzzelFlash;
     }
 
     public InputEvent CreateInputEvent(int tickAck, float deltaTime)
@@ -893,6 +850,7 @@ public class PlayerInputHandler {
         {
             mouseDown = true;
 
+            muzzelFlash.Flash();
             // Debug
             var zAngleRad = zAngle * Mathf.Deg2Rad; 
             var vec = (Vector3) MathUtils.RotateVector(localPlayerFirePointTransform.localPosition, zAngleRad - Mathf.PI/2f);

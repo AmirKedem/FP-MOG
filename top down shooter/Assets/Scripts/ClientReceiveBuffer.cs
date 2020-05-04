@@ -47,6 +47,14 @@ public class ClientReceiveBuffer : MyStopWatch
         playerStates = new List<PlayerState>();
     }
 
+    public WorldState GetLatestWorldState()
+    {
+        if (snapshotBuffer.Count == 0)
+            return null;
+
+        return snapshotBuffer[snapshotBuffer.Count - 1];
+    }
+
     public void AppendNewSnapshot(WorldState snapshot)
     {
         lock (snapshotBuffer)
@@ -114,7 +122,6 @@ public class ClientReceiveBuffer : MyStopWatch
             lastTimeCallTime = this.NowInTicks;
             // Advance time by the delta time between function calls.
             time += deltaTime;
-
             // Interpolation 
 
             //Debug.Log(snapshotGap);

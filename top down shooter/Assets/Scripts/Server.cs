@@ -325,30 +325,25 @@ public class Server : MonoBehaviour
                     {
                         Debug.Log($"{newConnection.RemoteEndPoint} failed to connect: Server full!");
                         newConnection.Close();
-
                     }
                 }
-                else
+                else if (sock != null)
                 {
-                    if (sock != null)
-                    {
-                        try
-                        {
-                            User usr = clients[sock];
-                            // Receive and process one message at a time.
-                            bool result = usr.ReceiveOnce();
+                    if (!isRunning)
+                        return;
 
-                            if (result == false)
-                            {
-                                OnUserDisconnect(sock);
-                            }
-                        } 
-                        catch (Exception e)
+                    try
+                    {
+                        User usr = clients[sock];
+                        // Receive and process one message at a time.
+                        bool result = usr.ReceiveOnce();
+
+                        if (result == false)
                         {
-                            Debug.Log("Line 346: key not found");
-                            Debug.Log(e);
+                            OnUserDisconnect(sock);
                         }
                     }
+                    catch { }
                 }
             }
 
@@ -406,6 +401,7 @@ public class Server : MonoBehaviour
 
             listenerSocket.Close();
             listenerSocket = null;
+            Debug.Log("s: " + listenerSocket == null);
         }
     }
 
