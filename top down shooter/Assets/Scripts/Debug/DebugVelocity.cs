@@ -17,14 +17,14 @@ public class DebugVelocity : MonoBehaviour
         playersList = Server.clients.Values.Select(x => x.player).ToList();
         foreach (Player p in playersList)
         {
-            if (p.playerGameobject != null && p.rb != null)
-            {
-                start = p.rb.position;
-                end = start + (Vector3) p.rb.velocity.normalized * 1f;
-                start.z = 0;
-                end.z = 0;
-                DrawLine(start, end, Color.green, 0.1f);
-            }
+            if (p == null || p.rb == null)
+                continue;
+
+            start = p.rb.position;
+            end = start + (Vector3) p.rb.velocity.normalized * 1f;
+            start.z = 0;
+            end.z = 0;
+            DrawLine(start, end, Color.green, 0.1f);            
         }
     }
 

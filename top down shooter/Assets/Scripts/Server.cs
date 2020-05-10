@@ -226,15 +226,20 @@ public class Server : MonoBehaviour
 
         WorldState snapshot = serverLoop.GetSnapshot();
 
-        foreach (Socket sock in OutputsOG)
+        lock (OutputsOG)
         {
-            try
+            for (int i = OutputsOG.Count - 1; i >= 0; i--)
             {
-                SendSnapshot(sock, snapshot);
-            }
-            catch
-            {
-                OnUserDisconnect(sock);
+                var sock = OutputsOG[i];
+
+                try
+                {
+                    SendSnapshot(sock, snapshot);
+                }
+                catch
+                {
+                    OnUserDisconnect(sock);
+                }
             }
         }
     }
@@ -379,7 +384,10 @@ public class Server : MonoBehaviour
         clients.Add(newConnection, usr);
 
         InputsOG.Add(newConnection);
-        OutputsOG.Add(newConnection);
+        lock (OutputsOG)
+        {
+            OutputsOG.Add(newConnection);
+        }
     }
 
     void OnApplicationQuit()

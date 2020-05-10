@@ -130,7 +130,6 @@ public class Client : MonoBehaviour
     [Header("Local player GameObject")]
     [SerializeField] private GameObject playerPrefab;
     [SerializeField] private GameObject playerLocalContainer;
-    [SerializeField] private GameObject playerLocalRigidbody;
 
     [Header("CSP proxy player")]
     [SerializeField] private Player predictedPlayer; // the game object that we simulate
@@ -389,7 +388,7 @@ public class Client : MonoBehaviour
     {
         // Take the local player (Player prefab) and use it.
         var tmpPlayer = playerLocalContainer.GetComponent<Player>();
-        tmpPlayer.SetPlayerID((ushort)myID);
+        tmpPlayer.SetPlayerID(myID);
         // The replicated gameobjects shouldn't be simulated, 
         // although this is the local player this is not the predicted player
         // only the predicted player has rb.simulated turned on that way
@@ -647,10 +646,6 @@ public class Client : MonoBehaviour
 
             clientLastReceivedStateTick = latestReceivedWS.serverTickSeq;
 
-            //this.predictedPlayer.FromState(latestPlayerState);
-            //this.proxy_player.transform.position = latestPlayerState.pos;
-            //this.proxy_player.transform.rotation = latestPlayerState.zAngle;
-
             if (clientEnableCorrections)
             {
                 buffer_slot = latestReceivedWS.clientTickAck % PLAYERBUFFERSIZE;
@@ -688,7 +683,6 @@ public class Client : MonoBehaviour
                         rewind_tick_number++;
                     }
 
-                    
                     // if more than 2ms apart, just snap, otherwise interpolate 
                     if ((prev_pos - predictedPlayer.rb.position).sqrMagnitude >= Mathf.Pow(2.0f,2))
                     {
@@ -701,7 +695,6 @@ public class Client : MonoBehaviour
                         this.clientPosError = prev_pos - predictedPlayer.rb.position;
                         this.clientRotError = prev_rot - predictedPlayer.rb.rotation;
                     }
-                    
                 }
             }
         }
@@ -860,8 +853,9 @@ public class PlayerInputHandler {
 
     private void SetMouseDir()
     {
+        // Orthographic Camera
         Vector2 mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 mouseDir = mousePos - (Vector2) localPlayerTransform.position;
+        Vector2 mouseDir = mousePos - (Vector2)localPlayerTransform.position;
         zAngle = Mathf.Atan2(mouseDir.y, mouseDir.x) * Mathf.Rad2Deg;
     }
 }
