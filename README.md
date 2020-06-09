@@ -6,6 +6,15 @@ A simple game with client side prediction, interpolation and lag compensation.<b
 
 The game is built with unity both the server and client are created from the same unity project and are currently target 64-bit windows machines.
 
+## Short Demo
+
+In the following gif there is a demonstration of lag compensation taken from the project.
+In the right side of the gif (The Client's window) there is two tanks one is the client predicted entity (red tank), and another one which shows the player from the snapshots that were received from the server (purple tank). By Using Clumsy I introudced 500 ms of lag (250ms for inbound and another 250ms for outbound hence 500ms) therefore, we can see a significant delay between the red tank and the purple tank.
+
+[<img src="Lag Compensation Demo.gif" width="100%">](#readme)
+
+This demonstration is not the actual project, it was taken on early stages of development.
+
 [<img src="Lag Compensation.png" width="100%">](#readme)
 
 ### Status
