@@ -6,6 +6,18 @@ A simple game with client side prediction, interpolation and lag compensation.<b
 
 The game is built with unity both the server and client are created from the same unity project and are currently target 64-bit windows machines.
 
+#### Setup
+
+The project is using unity version 2019.2.6f1
+
+#### Project Managment
+
+- Project Tools
+To build the project and move between the scenes use the project tools window in the editor.
+
+- Launch Tools
+To launch it use the launch tool, add an entry using the Add Entry button configure it as you like and if you have built the project the correct build will run from the builds folder.
+
 ## Short Demo
 
 In the following gif there is a demonstration of lag compensation taken from the project.
@@ -58,9 +70,9 @@ Client-side Interpolation is performed only on the other players, or enemies, si
 
 #### Smooth PLAYER movement
 
-The problem with extrapolating positions is fairly obvious: it is impossible to accurately predict the future. It will render movement correctly only if the movement is constant, but this will not always be the case. Players may change both speed and direction at random. This may result in a small amount of "warping" as new updates arrive and the estimated positions are corrected, and also cause problems for hit detection as players may be rendered in positions they are not actually in.
+In order to allow smooth gameplay, the client is allowed to do minor changes to the game state, which means he can preform physics actions on his character. While the server may ultimately keep track of ammunition, health, position, etc., the client may be allowed to predict the new server-side game state based on the player's actions, such as allowing a player to start moving before the server has responded to the command. These changes will generally be accepted under normal conditions and make delay mostly transparent. Problems will arise only in the case of high delays or losses, when the client's predictions are very noticeably undone by the server. Sometimes, in the case of minor differences, the server may even allow "incorrect" changes to the state based on updates from the client.
 
-In order to allow smooth gameplay, the client is allowed to do soft changes to the game state. While the server may ultimately keep track of ammunition, health, position, etc., the client may be allowed to predict the new server-side game state based on the player's actions, such as allowing a player to start moving before the server has responded to the command. These changes will generally be accepted under normal conditions and make delay mostly transparent. Problems will arise only in the case of high delays or losses, when the client's predictions are very noticeably undone by the server. Sometimes, in the case of minor differences, the server may even allow "incorrect" changes to the state based on updates from the client.
+The problem with extrapolating positions is fairly obvious: it is impossible to accurately predict the future. It will render movement correctly only if the movement is constant, but this will not always be the case. Players may change both speed and direction at random. This may result in a small amount of "warping" as new updates arrive and the estimated positions are corrected, and also cause problems for hit detection as players may be rendered in positions they are not actually in.
 
 Client-side prediction is performed only on the entity of the client, or his character.
 
