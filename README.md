@@ -29,11 +29,6 @@ This demonstration is not the actual project, it was taken on early stages of de
 
 [<img src="Lag Compensation.png" width="100%">](#readme)
 
-### Status
-
-This project is no longer under active development,<br>
-but code contributions are more than welcome.
-
 ## Netcode
 
 For real-time games, an authoritative server controls the game state. Clients are only responsible for sending commands ('Left', 'Right', 'Shoot', etc.) and rendering the state.
@@ -88,3 +83,8 @@ One way to address the issue is to store past game states for a certain length o
 
 ## Resources
 https://github.com/MFatihMAR/Game-Networking-Resources
+
+## Status
+
+This project is no longer under active development,<br>
+but code contributions are more than welcome.
