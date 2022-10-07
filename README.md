@@ -31,10 +31,8 @@ This demonstration is not the actual project, it was taken on early stages of de
 
 ### Status
 
-This project is still under development,<br>
-and currently in POC state.
-
-This project is created as part of 5 points Cyber Course
+This project is no longer under active development,<br>
+but code contributions are more than welcome.
 
 ## Netcode
 
@@ -45,9 +43,9 @@ While this approach prevents cheating and allows lower-end machines to run the g
 Therefore, game devs have developed some neat algorithms to make the game experience smoother and lower the perceived lag by the players.
 
 ## Algorithms:
-    - Lag Compensation [Done]
-    - Client Side Interpolation [Done]
-    - Client Side Prediction [Done]
+    - Lag Compensation
+    - Client Side Interpolation
+    - Client Side Prediction
 
 ![Imgur](https://i.imgur.com/nIhGLDz.gif)
 
